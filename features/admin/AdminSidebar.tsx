@@ -5,7 +5,7 @@ import { usePathname, useRouter } from 'next/navigation';
 import {
   LayoutDashboard, CalendarDays, BedDouble, Image,
   Star, Tag, CreditCard, BarChart3, Settings, Globe,
-  LogOut, ChevronRight, TrendingUp, Search, Users,
+  LogOut, ChevronRight, TrendingUp, Search, Users, Mail, Activity, Bell,
 } from 'lucide-react';
 import { Logo } from '@/components/shared/Logo';
 import { ROUTES } from '@/constants/routes';
@@ -44,6 +44,15 @@ const NAV_SECTIONS = [
     items: [
       { label: 'Payments', href: ROUTES.adminPayments, icon: CreditCard },
       { label: 'Reports',  href: ROUTES.adminReports,  icon: BarChart3 },
+    ],
+  },
+  {
+    label: 'Communications',
+    items: [
+      { label: 'Comm. Center',  href: ROUTES.adminCommunications, icon: Mail },
+      { label: 'Email Queue',   href: ROUTES.adminEmailQueue,     icon: Mail },
+      { label: 'Activity Feed', href: ROUTES.adminActivityFeed,   icon: Activity },
+      { label: 'Notifications', href: ROUTES.adminNotifications,  icon: Bell },
     ],
   },
   {

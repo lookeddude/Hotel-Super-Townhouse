@@ -1,6 +1,6 @@
 'use client';
 
-import { Bell, Search, Menu, LogOut } from 'lucide-react';
+import { Search, Menu, LogOut } from 'lucide-react';
 import { usePathname, useRouter } from 'next/navigation';
 import { Breadcrumb } from '@/components/shared/Breadcrumb';
 import { useAuth } from '@/providers/AuthProvider';
@@ -8,20 +8,29 @@ import { toast } from 'sonner';
 import { ROUTES } from '@/constants/routes';
 import { useState, useRef, useEffect } from 'react';
 import Link from 'next/link';
+import { NotificationBell } from '@/components/notifications/NotificationBell';
 
 function getPageTitle(pathname: string): string {
   const map: Record<string, string> = {
-    '/admin/dashboard': 'Dashboard',
-    '/admin/bookings': 'Bookings',
-    '/admin/calendar': 'Calendar',
-    '/admin/rooms': 'Room Management',
-    '/admin/gallery': 'Gallery',
-    '/admin/reviews': 'Reviews',
-    '/admin/offers': 'Offers & Promotions',
-    '/admin/payments': 'Payments',
-    '/admin/reports': 'Reports',
-    '/admin/cms': 'Website CMS',
-    '/admin/settings': 'Settings',
+    '/admin/dashboard':                    'Business Intelligence',
+    '/admin/bookings':                     'Bookings',
+    '/admin/calendar':                     'Calendar',
+    '/admin/rooms':                        'Room Management',
+    '/admin/gallery':                      'Gallery',
+    '/admin/reviews':                      'Reviews',
+    '/admin/offers':                       'Offers & Promotions',
+    '/admin/payments':                     'Payments',
+    '/admin/reports':                      'Revenue Reports',
+    '/admin/cms':                          'Website CMS',
+    '/admin/settings':                     'Settings',
+    '/admin/search':                       'Global Search',
+    '/admin/analytics/bookings':           'Booking Analytics',
+    '/admin/analytics/rooms':              'Room Performance',
+    '/admin/analytics/guests':             'Guest Analytics',
+    '/admin/communications':               'Communication Center',
+    '/admin/communications/email-queue':   'Email Queue',
+    '/admin/communications/activity-feed': 'Activity Feed',
+    '/admin/notifications':               'All Notifications',
   };
   return map[pathname] ?? 'Admin';
 }
@@ -81,14 +90,8 @@ export function AdminTopBar() {
         />
       </div>
 
-      {/* Notifications */}
-      <button
-        className="relative p-2 rounded-lg hover:bg-surface transition-colors"
-        aria-label="Notifications"
-      >
-        <Bell size={18} className="text-on-surface-variant" />
-        <span className="absolute top-1.5 right-1.5 w-1.5 h-1.5 bg-primary rounded-full" aria-hidden="true" />
-      </button>
+      {/* Notifications — live bell with unread count */}
+      <NotificationBell />
 
       {/* Avatar + dropdown */}
       <div ref={menuRef} className="relative">

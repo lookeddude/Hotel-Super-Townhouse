@@ -32,8 +32,13 @@ export const ROUTES = {
   adminSettings: '/admin/settings',
   adminCms: '/admin/cms',
   // Phase 8 — Analytics & Search
-  adminSearch:          '/admin/search',
-  adminAnalyticsBookings: '/admin/analytics/bookings',
-  adminAnalyticsRooms:    '/admin/analytics/rooms',
-  adminAnalyticsGuests:   '/admin/analytics/guests',
+  adminSearch:                '/admin/search',
+  adminAnalyticsBookings:     '/admin/analytics/bookings',
+  adminAnalyticsRooms:        '/admin/analytics/rooms',
+  adminAnalyticsGuests:       '/admin/analytics/guests',
+  // Phase 9 — Communication Center
+  adminCommunications:        '/admin/communications',
+  adminEmailQueue:            '/admin/communications/email-queue',
+  adminActivityFeed:          '/admin/communications/activity-feed',
+  adminNotifications:         '/admin/notifications',
 } as const;
