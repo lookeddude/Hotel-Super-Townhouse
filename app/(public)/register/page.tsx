@@ -98,12 +98,12 @@ export default function RegisterPage() {
   }
 
   return (
-    <div className="min-h-screen bg-surface flex items-center justify-center px-4 py-12">
+    <div className="min-h-screen bg-surface flex items-start justify-center px-4 py-8 overflow-y-auto">
       <div className="w-full max-w-md">
         <div className="bg-white rounded-lg border border-outline-variant p-8 shadow-level-2">
           {/* Logo */}
-          <div className="text-center mb-8">
-            <div className="inline-flex items-center justify-center w-12 h-12 rounded-xl bg-primary text-white font-bold text-xl mb-4">
+          <div className="text-center mb-6">
+            <div className="inline-flex items-center justify-center w-12 h-12 rounded-xl bg-primary text-white font-bold text-xl mb-3">
               ST
             </div>
             <h1 className="font-heading text-headline-md text-on-surface">Create Account</h1>
@@ -112,7 +112,7 @@ export default function RegisterPage() {
             </p>
           </div>
 
-          <form onSubmit={handleSubmit(onSubmit)} className="space-y-4" noValidate>
+          <form onSubmit={handleSubmit(onSubmit)} className="space-y-3" noValidate>
             {/* Full Name */}
             <div className="space-y-1.5">
               <label htmlFor="reg-name" className="text-label-md text-on-surface">
