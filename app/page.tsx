@@ -115,7 +115,7 @@ export default function HomePage() {
                     ))}
                   </div>
                   <p className="text-on-surface-variant text-sm leading-relaxed italic">
-                    "{review.text}"
+                    &ldquo;{review.text}&rdquo;
                   </p>
                   <div className="flex items-center gap-3 pt-1">
                     <div className="w-8 h-8 rounded-full bg-primary flex items-center justify-center text-white text-xs font-bold">

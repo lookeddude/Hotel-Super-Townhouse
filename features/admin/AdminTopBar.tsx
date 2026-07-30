@@ -7,7 +7,6 @@ import { useAuth } from '@/providers/AuthProvider';
 import { toast } from 'sonner';
 import { ROUTES } from '@/constants/routes';
 import { useState, useRef, useEffect } from 'react';
-import Link from 'next/link';
 import { NotificationBell } from '@/components/notifications/NotificationBell';
 
 function getPageTitle(pathname: string): string {

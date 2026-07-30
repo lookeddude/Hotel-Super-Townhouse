@@ -3,7 +3,7 @@ import { createMetadata } from '@/lib/metadata';
 import { Breadcrumb } from '@/components/shared/Breadcrumb';
 import { createServerClient } from '@/lib/supabase/server';
 import Link from 'next/link';
-import { BedDouble, Users, Maximize2, Wifi, Coffee, Star } from 'lucide-react';
+import { BedDouble, Users, Maximize2, Star } from 'lucide-react';
 
 export const metadata: Metadata = createMetadata({
   title: 'Rooms & Suites',

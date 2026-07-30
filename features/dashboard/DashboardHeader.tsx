@@ -1,7 +1,7 @@
 'use client';
 
 import { useRouter } from 'next/navigation';
-import { Bell, Menu, LogOut, User, Settings } from 'lucide-react';
+import { Bell, Menu, LogOut, User } from 'lucide-react';
 import { Breadcrumb } from '@/components/shared/Breadcrumb';
 import { useAuth } from '@/providers/AuthProvider';
 import { ROUTES } from '@/constants/routes';

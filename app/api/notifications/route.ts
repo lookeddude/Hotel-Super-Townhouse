@@ -26,7 +26,7 @@ export async function GET(req: NextRequest) {
 
     const notifications = await getUserNotifications(supabase as any, user.id, { limit, unreadOnly });
     return NextResponse.json({ notifications, count: notifications.length });
-  } catch (err: any) {
+  } catch (_err) {
     return NextResponse.json({ error: 'Internal server error' }, { status: 500 });
   }
 }

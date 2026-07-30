@@ -40,10 +40,12 @@ export function useNotifications(limit = 30) {
     setNotifications(notifs);
     setUnreadCount(count);
     setLoading(false);
-  }, [supabase, user?.id, limit]);
+  }, [supabase, user, limit]);
 
   // Initial load
-  useEffect(() => { load(); }, [load]);
+  useEffect(() => {
+    void load();
+  }, [load]);
 
   // Realtime subscription
   useEffect(() => {
@@ -76,7 +78,7 @@ export function useNotifications(limit = 30) {
       setNotifications(prev => prev.map(n => ({ ...n, is_read: true })));
       setUnreadCount(0);
     }
-  }, [supabase, user?.id]);
+  }, [supabase, user]);
 
   const deleteOne = useCallback(async (id: string) => {
     const wasUnread = notifications.find(n => n.id === id)?.is_read === false;

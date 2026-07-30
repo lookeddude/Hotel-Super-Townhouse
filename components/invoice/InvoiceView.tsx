@@ -4,7 +4,7 @@
  * Full invoice display with print/download support.
  */
 import { formatINR, formatDate } from '@/services/pricingService';
-import { Printer, X, Download } from 'lucide-react';
+import { Printer, X } from 'lucide-react';
 
 interface InvoiceViewProps {
   invoice: any;

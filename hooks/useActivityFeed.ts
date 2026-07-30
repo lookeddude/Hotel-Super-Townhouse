@@ -18,7 +18,7 @@ export function useActivityFeed(limit = 20) {
     setLoading(false);
   }, [supabase, limit]);
 
-  useEffect(() => { load(); }, [load]);
+  useEffect(() => { void load(); }, [load]);
 
   // Realtime subscription
   useEffect(() => {

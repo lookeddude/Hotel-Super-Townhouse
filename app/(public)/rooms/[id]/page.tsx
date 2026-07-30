@@ -2,8 +2,7 @@ import type { Metadata } from 'next';
 import { notFound } from 'next/navigation';
 import { Breadcrumb } from '@/components/shared/Breadcrumb';
 import { createMetadata } from '@/lib/metadata';
-import { BedDouble, Users, Maximize2, Star, Coffee, Wind, Tv, CheckCircle2, ArrowLeft } from 'lucide-react';
-import Link from 'next/link';
+import { BedDouble, Users, Maximize2, Star, Coffee, CheckCircle2 } from 'lucide-react';
 import { createServerClient } from '@/lib/supabase/server';
 import { RoomBookingWidget } from '@/features/rooms/RoomBookingWidget';
 

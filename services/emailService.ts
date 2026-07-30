@@ -101,8 +101,8 @@ async function sendViaSendGrid(
 
 /** Amazon SES — set AWS_ACCESS_KEY_ID, AWS_SECRET_ACCESS_KEY, AWS_REGION */
 async function sendViaSES(
-  to: string, _toName: string, from: string, fromName: string,
-  subject: string, html: string, text: string
+  _to: string, _toName: string, _from: string, _fromName: string,
+  _subject: string, _html: string, _text: string
 ): Promise<EmailResult> {
   try {
     // Note: Install @aws-sdk/client-ses when activating SES
@@ -117,18 +117,15 @@ async function sendViaSES(
   }
 }
 
-/** Console (development) — logs to stdout */
+/** Console (development) — logs to stdout via console.info */
 async function sendViaConsole(
   to: string, subject: string, text: string
 ): Promise<EmailResult> {
-  console.log('\n╔══════════════════════════════════════════════════╗');
-  console.log('║           📧 EMAIL (dev/console mode)            ║');
-  console.log('╠══════════════════════════════════════════════════╣');
-  console.log(`║ To:      ${to.padEnd(40)}║`);
-  console.log(`║ Subject: ${subject.slice(0, 40).padEnd(40)}║`);
-  console.log('╠══════════════════════════════════════════════════╣');
-  console.log(text.slice(0, 300));
-  console.log('╚══════════════════════════════════════════════════╝\n');
+  console.info('\n[EMAIL DEV] ─────────────────────────────────────');
+  console.info(`[EMAIL DEV] To:      ${to}`);
+  console.info(`[EMAIL DEV] Subject: ${subject}`);
+  console.info(`[EMAIL DEV] Preview: ${text.slice(0, 200)}`);
+  console.info('[EMAIL DEV] ─────────────────────────────────────\n');
   return { success: true, messageId: `console-${Date.now()}`, provider: 'console' };
 }
 

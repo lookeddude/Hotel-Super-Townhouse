@@ -1,0 +1,27 @@
+User-agent: *
+Allow: /
+Allow: /rooms
+Allow: /gallery
+Allow: /about
+Allow: /contact
+Allow: /facilities
+Allow: /policies
+Allow: /faq
+
+# Block admin and dashboard from indexing
+Disallow: /admin
+Disallow: /admin/
+Disallow: /dashboard
+Disallow: /dashboard/
+Disallow: /api/
+Disallow: /auth/
+Disallow: /_next/
+
+# Block specific pages
+Disallow: /login
+Disallow: /register
+Disallow: /forgot-password
+Disallow: /reset-password
+
+# Sitemap location
+Sitemap: https://supertownhouse.com/sitemap.xml

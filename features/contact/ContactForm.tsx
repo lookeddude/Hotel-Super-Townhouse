@@ -1,7 +1,7 @@
 'use client';
 
 import { useState } from 'react';
-import { Send, CheckCircle, AlertCircle } from 'lucide-react';
+import { Send, CheckCircle } from 'lucide-react';
 import { useSupabase } from '@/providers/SupabaseProvider';
 import { submitContactForm } from '@/services/contactService';
 import { toast } from 'sonner';

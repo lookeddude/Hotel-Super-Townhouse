@@ -60,7 +60,7 @@ export function HeroSection() {
             variants={slideUp}
             className="text-body-lg text-white/75 mb-10 max-w-xl leading-relaxed"
           >
-            Experience modern comfort and impeccable hospitality at ITPL, Bengaluru's
+            Experience modern comfort and impeccable hospitality at ITPL, Bengaluru&apos;s
             premier business district. Your perfect stay awaits.
           </motion.p>
 

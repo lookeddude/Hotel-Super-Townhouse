@@ -93,7 +93,7 @@ export async function POST(req: NextRequest) {
         break;
       }
       default:
-        console.log(`[webhook] Unhandled event: ${event}`);
+        console.info(`[webhook] Unhandled event: ${event}`);
     }
 
     // Mark as processed
