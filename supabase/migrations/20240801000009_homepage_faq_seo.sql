@@ -1,0 +1,18 @@
+-- =============================================================================
+-- Migration: 20240801000009_homepage_faq_seo.sql
+-- Date:       2024-08-01
+-- Project:    Super Townhouse
+-- Applied:    YES - Supabase project jzcmfpvscdsvkijpgdlj
+-- Description:
+--   Creates CMS-style tables for the public-facing website:
+--     - homepage_content  : Structured content blocks for the landing page
+--                           (hero banners, feature sections, testimonial
+--                           carousels, CTA sections) stored as JSONB payloads
+--                           with section_key identifiers and ordering.
+--     - faq               : Frequently-asked questions with category grouping,
+--                           question text, answer (supports Markdown), and
+--                           display ordering / published flag.
+--     - seo_metadata      : Per-route SEO configuration storing meta title,
+--                           description, canonical URL, Open Graph image URL,
+--                           and structured-data JSON-LD blob.
+-- =============================================================================

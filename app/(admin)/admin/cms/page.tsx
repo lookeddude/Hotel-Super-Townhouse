@@ -1,0 +1,383 @@
+'use client';
+
+import { useEffect, useState, useCallback } from 'react';
+import { Save, Loader2, Plus, Trash2, Edit2, Check, X } from 'lucide-react';
+import { useSupabase } from '@/providers/SupabaseProvider';
+import {
+  getHotelInfo, updateHotelInfo,
+  getFAQs, createFAQ, updateFAQ, deleteFAQ,
+  getAllSettings, upsertSetting,
+} from '@/services/cmsService';
+import { getContactMessages, markContactResolved, deleteContactMessage } from '@/services/contactService';
+import { toast } from 'sonner';
+
+type Tab = 'hotel' | 'faq' | 'contacts' | 'settings';
+
+export default function AdminCMSPage() {
+  const [activeTab, setActiveTab] = useState<Tab>('hotel');
+  const TABS: { id: Tab; label: string }[] = [
+    { id: 'hotel', label: 'Hotel Info' },
+    { id: 'faq', label: 'FAQ' },
+    { id: 'contacts', label: 'Contact Requests' },
+    { id: 'settings', label: 'Site Settings' },
+  ];
+
+  return (
+    <div className="space-y-6">
+      <div>
+        <h1 className="font-heading text-headline-md text-on-surface">Website CMS</h1>
+        <p className="text-body-sm text-on-surface-variant mt-1">Manage all website content and settings</p>
+      </div>
+      <div className="border-b border-outline-variant">
+        <nav className="flex gap-1 -mb-px">
+          {TABS.map((tab) => (
+            <button key={tab.id} onClick={() => setActiveTab(tab.id)}
+              className={`px-5 py-2.5 text-sm font-medium border-b-2 transition-colors ${activeTab === tab.id ? 'border-primary text-primary' : 'border-transparent text-on-surface-variant hover:text-on-surface'}`}>
+              {tab.label}
+            </button>
+          ))}
+        </nav>
+      </div>
+      {activeTab === 'hotel' && <HotelInfoTab />}
+      {activeTab === 'faq' && <FAQTab />}
+      {activeTab === 'contacts' && <ContactsTab />}
+      {activeTab === 'settings' && <SettingsTab />}
+    </div>
+  );
+}
+
+// ─── Hotel Info (corrected column names) ─────────────────────────────────────
+
+function HotelInfoTab() {
+  const { supabase } = useSupabase();
+  const [hotel, setHotel] = useState<any>(null);
+  const [form, setForm] = useState<any>({});
+  const [isLoading, setIsLoading] = useState(true);
+  const [isSaving, setIsSaving] = useState(false);
+
+  useEffect(() => {
+    getHotelInfo(supabase).then(({ data }) => {
+      setHotel(data);
+      setForm(data ?? {});
+      setIsLoading(false);
+    });
+  }, [supabase]);
+
+  const handleSave = async () => {
+    if (!hotel?.id) { toast.error('No hotel record found'); return; }
+    setIsSaving(true);
+    // Only send updatable fields (not id, created_at, updated_at)
+    const { id, created_at, updated_at, ...updateData } = form;
+    const { error } = await updateHotelInfo(supabase, hotel.id, updateData);
+    if (error) toast.error('Failed to save: ' + error.message);
+    else toast.success('Hotel information updated successfully');
+    setIsSaving(false);
+  };
+
+  if (isLoading) return <div className="py-16 text-center text-sm text-on-surface-variant">Loading hotel information…</div>;
+
+  // Using actual DB column names
+  const FIELDS = [
+    { key: 'name', label: 'Hotel Name', type: 'text' },
+    { key: 'tagline', label: 'Tagline', type: 'text' },
+    { key: 'description', label: 'Description', type: 'textarea', span: true },
+    { key: 'phone_primary', label: 'Primary Phone', type: 'text' },
+    { key: 'phone_secondary', label: 'Secondary Phone', type: 'text' },
+    { key: 'email', label: 'Email', type: 'email' },
+    { key: 'website', label: 'Website', type: 'url' },
+    { key: 'address_line1', label: 'Address Line 1', type: 'text' },
+    { key: 'address_line2', label: 'Address Line 2', type: 'text' },
+    { key: 'city', label: 'City', type: 'text' },
+    { key: 'state', label: 'State', type: 'text' },
+    { key: 'postal_code', label: 'Postal Code', type: 'text' },
+    { key: 'country', label: 'Country', type: 'text' },
+    { key: 'check_in_time', label: 'Check-in Time', type: 'time' },
+    { key: 'check_out_time', label: 'Check-out Time', type: 'time' },
+    { key: 'latitude', label: 'Latitude', type: 'number' },
+    { key: 'longitude', label: 'Longitude', type: 'number' },
+    { key: 'star_rating', label: 'Star Rating', type: 'number' },
+    { key: 'total_rooms', label: 'Total Rooms', type: 'number' },
+    { key: 'gstin', label: 'GSTIN', type: 'text' },
+    { key: 'pan', label: 'PAN', type: 'text' },
+    { key: 'social_instagram', label: 'Instagram URL', type: 'url' },
+    { key: 'social_facebook', label: 'Facebook URL', type: 'url' },
+    { key: 'social_twitter', label: 'Twitter / X URL', type: 'url' },
+    { key: 'social_youtube', label: 'YouTube URL', type: 'url' },
+    { key: 'logo_url', label: 'Logo URL', type: 'url' },
+    { key: 'cover_image_url', label: 'Cover Image URL', type: 'url' },
+  ];
+
+  return (
+    <div className="bg-white rounded-lg border border-outline-variant">
+      <div className="p-6 border-b border-outline-variant flex items-center justify-between">
+        <h2 className="font-heading font-semibold text-base text-on-surface">Hotel Information</h2>
+        <button onClick={handleSave} disabled={isSaving} className="flex items-center gap-2 px-4 py-2 bg-primary text-white text-sm font-semibold rounded-lg hover:bg-primary-dark disabled:opacity-60">
+          {isSaving ? <Loader2 size={14} className="animate-spin" /> : <Save size={14} />}
+          {isSaving ? 'Saving…' : 'Save Changes'}
+        </button>
+      </div>
+      <div className="p-6 grid grid-cols-1 md:grid-cols-2 gap-5">
+        {FIELDS.map((f) => (
+          <div key={f.key} className={(f as any).span ? 'md:col-span-2' : ''}>
+            <label className="block text-xs font-medium text-on-surface mb-1.5">{f.label}</label>
+            {f.type === 'textarea' ? (
+              <textarea value={form[f.key] ?? ''} onChange={(e) => setForm((p: any) => ({ ...p, [f.key]: e.target.value }))} rows={4} className="w-full px-3 py-2 border border-outline-variant rounded-lg text-sm focus:outline-none focus:border-primary resize-none" />
+            ) : (
+              <input type={f.type} value={form[f.key] ?? ''} onChange={(e) => setForm((p: any) => ({ ...p, [f.key]: e.target.value }))} className="w-full px-3 py-2 border border-outline-variant rounded-lg text-sm focus:outline-none focus:border-primary" />
+            )}
+          </div>
+        ))}
+      </div>
+    </div>
+  );
+}
+
+// ─── FAQ (corrected: is_active not is_published) ──────────────────────────────
+
+function FAQTab() {
+  const { supabase } = useSupabase();
+  const [faqs, setFaqs] = useState<any[]>([]);
+  const [isLoading, setIsLoading] = useState(true);
+  const [editingId, setEditingId] = useState<string | null>(null);
+  const [editForm, setEditForm] = useState({ question: '', answer: '' });
+  const [showAdd, setShowAdd] = useState(false);
+  const [newFaq, setNewFaq] = useState({ question: '', answer: '' });
+
+  const load = useCallback(async () => {
+    setIsLoading(true);
+    const { data } = await getFAQs(supabase);
+    setFaqs(data ?? []);
+    setIsLoading(false);
+  }, [supabase]);
+
+  useEffect(() => { load(); }, [load]);
+
+  const handleAdd = async () => {
+    if (!newFaq.question || !newFaq.answer) { toast.error('Question and answer required'); return; }
+    const { error } = await createFAQ(supabase, { question: newFaq.question, answer: newFaq.answer, display_order: faqs.length + 1, is_active: true });
+    if (error) { toast.error('Failed to create FAQ'); return; }
+    toast.success('FAQ added');
+    setNewFaq({ question: '', answer: '' });
+    setShowAdd(false);
+    load();
+  };
+
+  const handleUpdate = async (id: string) => {
+    const { error } = await updateFAQ(supabase, id, editForm);
+    if (error) { toast.error('Failed to update'); return; }
+    toast.success('FAQ updated');
+    setEditingId(null);
+    load();
+  };
+
+  const handleDelete = async (id: string) => {
+    if (!confirm('Delete this FAQ?')) return;
+    await deleteFAQ(supabase, id);
+    toast.success('FAQ deleted');
+    load();
+  };
+
+  const handleToggle = async (faq: any) => {
+    await updateFAQ(supabase, faq.id, { is_active: !faq.is_active });
+    load();
+  };
+
+  if (isLoading) return <div className="py-16 text-center text-sm text-on-surface-variant">Loading FAQs…</div>;
+
+  return (
+    <div className="space-y-4">
+      <div className="flex items-center justify-between">
+        <p className="text-sm text-on-surface-variant">{faqs.length} FAQs</p>
+        <button onClick={() => setShowAdd(true)} className="flex items-center gap-2 px-4 py-2 bg-primary text-white text-sm font-semibold rounded-lg hover:bg-primary-dark">
+          <Plus size={14} />Add FAQ
+        </button>
+      </div>
+      {showAdd && (
+        <div className="bg-white rounded-lg border border-primary/30 p-5 space-y-3">
+          <h3 className="font-medium text-sm">New FAQ</h3>
+          <input placeholder="Question" value={newFaq.question} onChange={(e) => setNewFaq(p => ({ ...p, question: e.target.value }))} className="w-full px-3 py-2 border border-outline-variant rounded-lg text-sm focus:outline-none focus:border-primary" />
+          <textarea placeholder="Answer" value={newFaq.answer} onChange={(e) => setNewFaq(p => ({ ...p, answer: e.target.value }))} rows={3} className="w-full px-3 py-2 border border-outline-variant rounded-lg text-sm focus:outline-none focus:border-primary resize-none" />
+          <div className="flex gap-2">
+            <button onClick={handleAdd} className="px-4 py-2 bg-primary text-white text-sm rounded-lg">Save</button>
+            <button onClick={() => setShowAdd(false)} className="px-4 py-2 border border-outline-variant rounded-lg text-sm">Cancel</button>
+          </div>
+        </div>
+      )}
+      <div className="space-y-2">
+        {faqs.map((faq) => (
+          <div key={faq.id} className="bg-white rounded-lg border border-outline-variant">
+            {editingId === faq.id ? (
+              <div className="p-4 space-y-3">
+                <input value={editForm.question} onChange={(e) => setEditForm(p => ({ ...p, question: e.target.value }))} className="w-full px-3 py-2 border border-outline-variant rounded-lg text-sm focus:outline-none" />
+                <textarea value={editForm.answer} onChange={(e) => setEditForm(p => ({ ...p, answer: e.target.value }))} rows={3} className="w-full px-3 py-2 border border-outline-variant rounded-lg text-sm focus:outline-none resize-none" />
+                <div className="flex gap-2">
+                  <button onClick={() => handleUpdate(faq.id)} className="px-3 py-1.5 bg-primary text-white text-xs rounded-lg flex items-center gap-1"><Check size={12} />Save</button>
+                  <button onClick={() => setEditingId(null)} className="px-3 py-1.5 border border-outline-variant text-xs rounded-lg flex items-center gap-1"><X size={12} />Cancel</button>
+                </div>
+              </div>
+            ) : (
+              <div className="p-4 flex items-start justify-between gap-4">
+                <div className="flex-1 min-w-0">
+                  <p className="font-medium text-sm text-on-surface">{faq.question}</p>
+                  <p className="text-sm text-on-surface-variant mt-1 line-clamp-2">{faq.answer}</p>
+                </div>
+                <div className="flex items-center gap-2 flex-shrink-0">
+                  <button onClick={() => handleToggle(faq)} className={`text-xs px-2 py-0.5 rounded-full ${faq.is_active ? 'bg-green-100 text-green-700' : 'bg-gray-100 text-gray-500'}`}>
+                    {faq.is_active ? 'Active' : 'Draft'}
+                  </button>
+                  <button onClick={() => { setEditingId(faq.id); setEditForm({ question: faq.question, answer: faq.answer }); }} className="p-1.5 hover:bg-surface rounded text-on-surface-variant hover:text-primary">
+                    <Edit2 size={13} />
+                  </button>
+                  <button onClick={() => handleDelete(faq.id)} className="p-1.5 hover:bg-red-50 rounded text-on-surface-variant hover:text-error">
+                    <Trash2 size={13} />
+                  </button>
+                </div>
+              </div>
+            )}
+          </div>
+        ))}
+        {faqs.length === 0 && !showAdd && (
+          <div className="bg-white rounded-lg border border-outline-variant py-16 text-center text-sm text-on-surface-variant">No FAQs yet.</div>
+        )}
+      </div>
+    </div>
+  );
+}
+
+// ─── Contacts (corrected: full_name, is_replied) ──────────────────────────────
+
+function ContactsTab() {
+  const { supabase } = useSupabase();
+  const [contacts, setContacts] = useState<any[]>([]);
+  const [isLoading, setIsLoading] = useState(true);
+  const [filter, setFilter] = useState<'all' | 'pending' | 'resolved'>('all');
+  const [expanded, setExpanded] = useState<string | null>(null);
+
+  const load = useCallback(async () => {
+    setIsLoading(true);
+    const resolved = filter === 'all' ? undefined : filter === 'resolved';
+    const { data } = await getContactMessages(supabase, { resolved });
+    setContacts(data ?? []);
+    setIsLoading(false);
+  }, [supabase, filter]);
+
+  useEffect(() => { load(); }, [load]);
+
+  const handleResolve = async (id: string, resolved: boolean) => {
+    await markContactResolved(supabase, id, !resolved);
+    toast.success(!resolved ? 'Marked as resolved' : 'Marked as pending');
+    load();
+  };
+
+  const handleDelete = async (id: string) => {
+    if (!confirm('Delete this message?')) return;
+    await deleteContactMessage(supabase, id);
+    toast.success('Message deleted');
+    load();
+  };
+
+  return (
+    <div className="space-y-4">
+      <div className="flex items-center gap-3">
+        {(['all', 'pending', 'resolved'] as const).map((f) => (
+          <button key={f} onClick={() => setFilter(f)} className={`px-4 py-1.5 rounded-full text-sm font-medium capitalize transition-colors ${filter === f ? 'bg-primary text-white' : 'bg-surface text-on-surface-variant hover:bg-outline-variant'}`}>{f}</button>
+        ))}
+      </div>
+      {isLoading ? (
+        <div className="space-y-3">{Array.from({length:5}).map((_,i) => <div key={i} className="h-16 bg-surface rounded-lg animate-pulse" />)}</div>
+      ) : contacts.length === 0 ? (
+        <div className="bg-white rounded-lg border border-outline-variant py-16 text-center text-sm text-on-surface-variant">No messages found</div>
+      ) : (
+        <div className="space-y-2">
+          {contacts.map((c) => (
+            <div key={c.id} className="bg-white rounded-lg border border-outline-variant overflow-hidden">
+              <div className="px-5 py-4 flex items-start justify-between gap-4 cursor-pointer" onClick={() => setExpanded(expanded === c.id ? null : c.id)}>
+                <div className="flex-1 min-w-0">
+                  <div className="flex items-center gap-2">
+                    <span className={`w-2 h-2 rounded-full flex-shrink-0 ${c.is_replied ? 'bg-green-400' : 'bg-yellow-400'}`} />
+                    <p className="font-medium text-sm text-on-surface">{c.full_name}</p>
+                    <span className="text-xs text-on-surface-variant">{c.email}</span>
+                  </div>
+                  <p className="text-sm text-on-surface-variant mt-0.5 truncate">{c.subject}</p>
+                </div>
+                <div className="flex items-center gap-2 flex-shrink-0">
+                  <span className="text-xs text-on-surface-variant">{new Date(c.created_at).toLocaleDateString('en-IN')}</span>
+                  <button onClick={(e) => { e.stopPropagation(); handleResolve(c.id, c.is_replied); }} className={`text-xs px-2 py-0.5 rounded-full ${c.is_replied ? 'bg-green-100 text-green-700' : 'bg-yellow-100 text-yellow-700'}`}>
+                    {c.is_replied ? '✓ Replied' : 'Pending'}
+                  </button>
+                  <button onClick={(e) => { e.stopPropagation(); handleDelete(c.id); }} className="p-1.5 hover:bg-red-50 rounded text-on-surface-variant hover:text-error">
+                    <Trash2 size={13} />
+                  </button>
+                </div>
+              </div>
+              {expanded === c.id && (
+                <div className="px-5 pb-4 border-t border-outline-variant pt-4 text-sm text-on-surface-variant whitespace-pre-wrap bg-surface/30">{c.message}</div>
+              )}
+            </div>
+          ))}
+        </div>
+      )}
+    </div>
+  );
+}
+
+// ─── Settings ─────────────────────────────────────────────────────────────────
+
+function SettingsTab() {
+  const { supabase } = useSupabase();
+  const [settings, setSettings] = useState<any[]>([]);
+  const [edits, setEdits] = useState<Record<string, string>>({});
+  const [isLoading, setIsLoading] = useState(true);
+  const [savingKey, setSavingKey] = useState<string | null>(null);
+
+  useEffect(() => {
+    getAllSettings(supabase).then(({ data }) => { setSettings(data ?? []); setIsLoading(false); });
+  }, [supabase]);
+
+  const handleSave = async (key: string) => {
+    const value = edits[key] ?? settings.find(s => s.key === key)?.value;
+    setSavingKey(key);
+    const { error } = await upsertSetting(supabase, key, value);
+    if (error) toast.error('Failed to save');
+    else { toast.success(`"${key}" updated`); setEdits(p => { const n = {...p}; delete n[key]; return n; }); }
+    setSavingKey(null);
+  };
+
+  if (isLoading) return <div className="py-16 text-center text-sm text-on-surface-variant">Loading settings…</div>;
+
+  return (
+    <div className="bg-white rounded-lg border border-outline-variant">
+      <div className="p-5 border-b border-outline-variant">
+        <h2 className="font-semibold text-base">Site Settings</h2>
+        <p className="text-xs text-on-surface-variant mt-0.5">Settings are applied immediately on save</p>
+      </div>
+      <div className="divide-y divide-outline-variant">
+        {settings.length === 0 ? (
+          <div className="py-12 text-center text-sm text-on-surface-variant">No settings found</div>
+        ) : settings.map((s) => {
+          const isDirty = edits[s.key] !== undefined && edits[s.key] !== s.value;
+          return (
+            <div key={s.key} className="flex items-center gap-4 px-5 py-3.5">
+              <div className="flex-1 min-w-0">
+                <p className="text-sm font-mono font-medium text-on-surface">{s.key}</p>
+                {s.description && <p className="text-xs text-on-surface-variant">{s.description}</p>}
+              </div>
+              <div className="flex items-center gap-2">
+                <input
+                  value={edits[s.key] ?? s.value ?? ''}
+                  onChange={(e) => setEdits(p => ({ ...p, [s.key]: e.target.value }))}
+                  className="w-48 px-3 py-1.5 border border-outline-variant rounded-lg text-sm focus:outline-none focus:border-primary"
+                />
+                {isDirty && (
+                  <button onClick={() => handleSave(s.key)} disabled={savingKey === s.key} className="px-3 py-1.5 bg-primary text-white text-xs rounded-lg disabled:opacity-60">
+                    {savingKey === s.key ? <Loader2 size={12} className="animate-spin" /> : <Save size={12} />}
+                  </button>
+                )}
+              </div>
+            </div>
+          );
+        })}
+      </div>
+    </div>
+  );
+}

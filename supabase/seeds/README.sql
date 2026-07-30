@@ -1,0 +1,28 @@
+-- ============================================================
+-- SEED FILE: README
+-- ============================================================
+-- Project: Hotel Super Townhouse (jzcmfpvscdsvkijpgdlj)
+-- Environment: Development / Staging only
+--
+-- NEVER run seeds against production without explicit approval.
+--
+-- ============================================================
+-- SEED FILES (Phase 3+)
+-- ============================================================
+-- 01_seed_room_categories.sql   → Room types (Standard, Deluxe, Suite...)
+-- 02_seed_rooms.sql             → Sample rooms with pricing and metadata
+-- 03_seed_amenities.sql         → Amenity catalog
+-- 04_seed_admin_user.sql        → Default admin account
+-- 05_seed_sample_bookings.sql   → Development test bookings
+-- 06_seed_sample_reviews.sql    → Development test reviews
+-- 07_seed_offers.sql            → Sample promotions and discounts
+--
+-- ============================================================
+-- HOW TO SEED
+-- ============================================================
+-- Via MCP: execute_sql(project_id, query)
+-- Via CLI: psql -h db.jzcmfpvscdsvkijpgdlj.supabase.co -U postgres -f seed.sql
+--
+-- ============================================================
+
+-- Seeds will be added during Phase 3 after schema creation.

@@ -1,0 +1,29 @@
+-- =============================================================================
+-- Migration: 20240801000013_rls_policies_admin_staff.sql
+-- Date:       2024-08-01
+-- Project:    Super Townhouse
+-- Applied:    YES - Supabase project jzcmfpvscdsvkijpgdlj
+-- Description:
+--   Defines RLS policies for admin, super_admin, and operational staff roles,
+--   granting broad read/write access required for property management:
+--
+--   Admin / Super Admin full access:
+--     profiles, user_roles, roles, bookings, booking_rooms, booking_guests,
+--     booking_status_history, payments, invoices, reviews, gallery,
+--     notifications, contact_messages, staff, maintenance_requests, audit_logs,
+--     settings, homepage_content, faq, seo_metadata, offers, room_types,
+--     amenities, rooms, room_images, room_amenities, hotel_information.
+--
+--   Staff (housekeeping / maintenance) restricted access:
+--     rooms                → SELECT + UPDATE cleaning_status / room_status
+--     maintenance_requests → SELECT assigned tasks; UPDATE status
+--     bookings             → SELECT (for check-in verification)
+--
+--   Super Admin only:
+--     audit_logs           → SELECT (read-only, no DELETE)
+--     settings             → INSERT / UPDATE / DELETE
+--     user_roles           → INSERT / DELETE (role assignment)
+--
+--   All policies use the is_admin() and has_role() helper functions defined
+--   in migration 010.
+-- =============================================================================

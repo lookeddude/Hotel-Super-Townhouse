@@ -1,0 +1,23 @@
+-- =============================================================================
+-- Migration: 20240801000011_rls_policies_public.sql
+-- Date:       2024-08-01
+-- Project:    Super Townhouse
+-- Applied:    YES - Supabase project jzcmfpvscdsvkijpgdlj
+-- Description:
+--   Defines RLS policies granting anonymous (unauthenticated) and public
+--   read access to non-sensitive tables that power the public website:
+--
+--     hotel_information   → Public SELECT (single published row)
+--     room_types          → Public SELECT (all active types)
+--     amenities           → Public SELECT (all amenities)
+--     room_images         → Public SELECT (images for active rooms)
+--     gallery             → Public SELECT (published gallery items)
+--     reviews             → Public SELECT (approved reviews only)
+--     faq                 → Public SELECT (published FAQs)
+--     homepage_content    → Public SELECT (published content blocks)
+--     seo_metadata        → Public SELECT (all routes)
+--     offers              → Public SELECT (active, non-expired offers)
+--
+--   No INSERT / UPDATE / DELETE policies are created for anonymous users.
+--   All write operations for these tables are handled in migration 013.
+-- =============================================================================

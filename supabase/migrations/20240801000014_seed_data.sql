@@ -1,0 +1,34 @@
+-- =============================================================================
+-- Migration: 20240801000014_seed_data.sql
+-- Date:       2024-08-01
+-- Project:    Super Townhouse
+-- Applied:    YES - Supabase project jzcmfpvscdsvkijpgdlj
+-- Description:
+--   Inserts baseline reference data required for the application to function:
+--
+--   roles
+--     → super_admin, admin, manager, reception, housekeeping,
+--       maintenance, customer
+--
+--   room_types
+--     → Standard Room, Deluxe Room, Premium Room, Junior Suite, Executive Suite,
+--       Presidential Suite — each with base price, capacity, size (sqft),
+--       and a short description.
+--
+--   amenities
+--     → ~30 amenities across categories: connectivity (WiFi), comfort (AC,
+--       heating), bathroom (bath tub, rain shower), entertainment (Smart TV,
+--       Netflix), food & beverage (minibar, room service), fitness & wellness
+--       (gym, spa, pool), business (workspace, conference room), and property
+--       services (parking, laundry, concierge).
+--
+--   hotel_information
+--     → Single row with Super Townhouse property details: name, address,
+--       city, state, pin, phone, email, check-in time (14:00), check-out
+--       time (11:00), cancellation policy, and social media links.
+--
+--   settings
+--     → Key-value pairs for: site_name, currency, tax_rate, gst_number,
+--       booking_advance_days, max_rooms_per_booking, review_auto_approve,
+--       maintenance_notification_email, and smtp configuration keys.
+-- =============================================================================

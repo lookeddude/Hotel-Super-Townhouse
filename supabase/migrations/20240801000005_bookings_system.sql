@@ -1,0 +1,21 @@
+-- =============================================================================
+-- Migration: 20240801000005_bookings_system.sql
+-- Date:       2024-08-01
+-- Project:    Super Townhouse
+-- Applied:    YES - Supabase project jzcmfpvscdsvkijpgdlj
+-- Description:
+--   Creates the complete bookings subsystem:
+--     - offers            : Promotional codes and special deals with discount
+--                           type (flat / percentage), validity windows, and
+--                           usage caps.
+--     - bookings          : Core reservation table linking a guest profile to
+--                           a property stay, storing check-in/out dates, total
+--                           price, applied offer, and booking_status enum.
+--     - booking_rooms     : Line items assigning specific rooms to a booking
+--                           with per-room nightly rate snapshot.
+--     - booking_guests    : Additional guest details (name, ID proof) attached
+--                           to a booking for check-in compliance.
+--     - booking_status_history : Append-only log of every booking_status
+--                           transition with actor user_id and optional note.
+--   Includes triggers for auto-generating booking references and audit logs.
+-- =============================================================================

@@ -1,0 +1,16 @@
+-- =============================================================================
+-- Migration: 20240801000004_rooms_images_room_amenities.sql
+-- Date:       2024-08-01
+-- Project:    Super Townhouse
+-- Applied:    YES - Supabase project jzcmfpvscdsvkijpgdlj
+-- Description:
+--   Creates the physical room inventory tables:
+--     - rooms             : Individual room records linked to a room_type,
+--                           with room number, floor, current room_status,
+--                           cleaning_status, and operational notes.
+--     - room_images       : Storage URLs and metadata for room photos,
+--                           supporting ordering and primary-image flagging.
+--     - room_amenities    : Junction table mapping specific rooms to their
+--                           available amenities (extends room_type defaults).
+--   Includes composite unique constraints and GIN indexes for search.
+-- =============================================================================

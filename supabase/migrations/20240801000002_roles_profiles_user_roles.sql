@@ -1,0 +1,15 @@
+-- =============================================================================
+-- Migration: 20240801000002_roles_profiles_user_roles.sql
+-- Date:       2024-08-01
+-- Project:    Super Townhouse
+-- Applied:    YES - Supabase project jzcmfpvscdsvkijpgdlj
+-- Description:
+--   Creates the foundational user-management tables:
+--     - roles             : Application roles (super_admin, admin, customer, etc.)
+--     - profiles          : Extended user profile linked to auth.users, storing
+--                           display name, avatar, phone, gender, ID verification
+--                           fields, and loyalty points.
+--     - user_roles        : Many-to-many join between profiles and roles with
+--                           optional expiry, granting granular access control.
+--   Also attaches update_updated_at triggers and creates supporting indexes.
+-- =============================================================================

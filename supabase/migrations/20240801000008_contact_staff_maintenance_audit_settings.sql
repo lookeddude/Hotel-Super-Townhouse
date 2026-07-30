@@ -1,0 +1,24 @@
+-- =============================================================================
+-- Migration: 20240801000008_contact_staff_maintenance_audit_settings.sql
+-- Date:       2024-08-01
+-- Project:    Super Townhouse
+-- Applied:    YES - Supabase project jzcmfpvscdsvkijpgdlj
+-- Description:
+--   Creates operational and administrative tables:
+--     - contact_messages   : Web-form submissions from visitors/guests,
+--                            capturing name, email, subject, message body,
+--                            and admin read/reply status.
+--     - staff              : Internal staff directory linked to a profile,
+--                            with staff_role, department, hire date, shift
+--                            preferences, and employment status.
+--     - maintenance_requests : Work-order tickets for room issues, linked to
+--                            a room and optionally a booking, with
+--                            maintenance_priority, maintenance_status, and
+--                            assigned staff member.
+--     - audit_logs         : Immutable append-only event log recording table
+--                            name, operation (INSERT/UPDATE/DELETE), row PK,
+--                            old/new JSONB snapshots, acting user, and IP.
+--     - settings           : Key-value store for dynamic application config
+--                            (feature flags, rate limits, UI toggles, etc.)
+--                            with value stored as JSONB.
+-- =============================================================================

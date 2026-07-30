@@ -1,0 +1,21 @@
+-- =============================================================================
+-- Migration: 20240801000007_reviews_gallery_notifications.sql
+-- Date:       2024-08-01
+-- Project:    Super Townhouse
+-- Applied:    YES - Supabase project jzcmfpvscdsvkijpgdlj
+-- Description:
+--   Creates guest-facing content and communication tables:
+--     - reviews                  : Guest reviews linked to a booking, with
+--                                  per-category ratings (cleanliness, staff,
+--                                  etc.), review body, review_status moderation
+--                                  state, and optional manager reply.
+--     - gallery                  : Property photo gallery with Supabase Storage
+--                                  URLs, title, category tag, alt text, and
+--                                  display ordering.
+--     - notifications            : Individual notification records sent to a
+--                                  user via a notification_channel, storing
+--                                  title, body, read status, and deep-link URL.
+--     - notification_preferences : Per-user toggle table controlling which
+--                                  notification_type / notification_channel
+--                                  combinations are enabled.
+-- =============================================================================

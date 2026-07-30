@@ -1,0 +1,29 @@
+-- =============================================================================
+-- Migration: 20240801000010_enable_rls_helper_functions.sql
+-- Date:       2024-08-01
+-- Project:    Super Townhouse
+-- Applied:    YES - Supabase project jzcmfpvscdsvkijpgdlj
+-- Description:
+--   Enables Row Level Security (RLS) on every application table and defines
+--   reusable SECURITY DEFINER helper functions used within RLS policies:
+--
+--     has_role(role_name TEXT) → BOOLEAN
+--       Returns TRUE if the currently authenticated user has been granted the
+--       specified role via the user_roles table.
+--
+--     is_admin() → BOOLEAN
+--       Returns TRUE if the current user has the 'admin' or 'super_admin' role.
+--       Shorthand used in most administrative-access policies.
+--
+--     is_super_admin() → BOOLEAN
+--       Returns TRUE only when the current user has the 'super_admin' role.
+--       Used to guard destructive or highly privileged operations.
+--
+--   Tables with RLS enabled (full list):
+--     profiles, user_roles, hotel_information, room_types, amenities, rooms,
+--     room_images, room_amenities, offers, bookings, booking_rooms,
+--     booking_guests, booking_status_history, payments, invoices, reviews,
+--     gallery, notifications, notification_preferences, contact_messages,
+--     staff, maintenance_requests, audit_logs, settings, homepage_content,
+--     faq, seo_metadata.
+-- =============================================================================

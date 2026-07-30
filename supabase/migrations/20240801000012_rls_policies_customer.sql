@@ -1,0 +1,24 @@
+-- =============================================================================
+-- Migration: 20240801000012_rls_policies_customer.sql
+-- Date:       2024-08-01
+-- Project:    Super Townhouse
+-- Applied:    YES - Supabase project jzcmfpvscdsvkijpgdlj
+-- Description:
+--   Defines RLS policies for authenticated customer-role users, enforcing
+--   strict data ownership (users can only access their own records):
+--
+--     profiles                   → SELECT / UPDATE own row (auth.uid() = id)
+--     bookings                   → SELECT own bookings; INSERT new bookings
+--     booking_rooms              → SELECT rooms for own bookings
+--     booking_guests             → SELECT / INSERT guests for own bookings
+--     booking_status_history     → SELECT history for own bookings
+--     payments                   → SELECT payments for own bookings
+--     invoices                   → SELECT invoices for own bookings
+--     reviews                    → SELECT own reviews; INSERT for stayed booking
+--     notifications              → SELECT / UPDATE (mark read) own notifications
+--     notification_preferences   → SELECT / INSERT / UPDATE own preferences
+--     contact_messages           → INSERT only (public contact form)
+--     maintenance_requests       → INSERT (report issue from own booking)
+--
+--   All policies use auth.uid() or subquery joins to enforce ownership.
+-- =============================================================================

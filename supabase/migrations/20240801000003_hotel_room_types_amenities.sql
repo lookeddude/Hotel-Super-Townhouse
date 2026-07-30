@@ -1,0 +1,16 @@
+-- =============================================================================
+-- Migration: 20240801000003_hotel_room_types_amenities.sql
+-- Date:       2024-08-01
+-- Project:    Super Townhouse
+-- Applied:    YES - Supabase project jzcmfpvscdsvkijpgdlj
+-- Description:
+--   Creates tables related to hotel configuration and room catalogue:
+--     - hotel_information : Singleton table holding the property's name,
+--                           address, contact details, check-in / check-out
+--                           times, policies, and social links.
+--     - room_types        : Defines room categories (Deluxe, Suite, etc.)
+--                           with base price, capacity, size, and description.
+--     - amenities         : Master list of amenities (WiFi, Pool, Spa, etc.)
+--                           with icon identifier and category grouping.
+--   Includes indexes on slug columns and update triggers.
+-- =============================================================================

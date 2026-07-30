@@ -1,0 +1,18 @@
+-- =============================================================================
+-- Migration: 20240801000006_payments_invoices.sql
+-- Date:       2024-08-01
+-- Project:    Super Townhouse
+-- Applied:    YES - Supabase project jzcmfpvscdsvkijpgdlj
+-- Description:
+--   Creates the payment and invoicing subsystem:
+--     - payments          : Records individual payment transactions linked to
+--                           a booking, capturing amount, payment_method,
+--                           payment_status, gateway reference, and metadata
+--                           JSONB for provider-specific fields.
+--     - invoice_sequence  : Single-row counter table used to generate
+--                           sequential, human-readable invoice numbers.
+--     - invoices          : Formal tax invoices linked to a booking and
+--                           optionally a payment, storing line items as JSONB,
+--                           subtotal, taxes, discounts, and total amounts.
+--   Includes a function/trigger to atomically bump invoice_sequence.
+-- =============================================================================
