@@ -1,5 +1,96 @@
 @import "tailwindcss";
 
+@theme {
+  /* ── Brand Colors ─────────────────────────────── */
+  --color-primary:           #e31837;
+  --color-primary-dark:      #b90027;
+  --color-primary-container: #ffdad8;
+
+  /* ── Background & Surface ─────────────────────── */
+  --color-background:                    #fbf9f8;
+  --color-surface:                       #efeded;
+  --color-surface-bright:                #fbf9f8;
+  --color-surface-dim:                   #dbd9d9;
+  --color-surface-container-lowest:      #ffffff;
+  --color-surface-container-low:         #f5f3f3;
+  --color-surface-container:             #efeded;
+  --color-surface-container-high:        #eae8e7;
+  --color-surface-container-highest:     #e4e2e2;
+
+  /* ── On Colors ────────────────────────────────── */
+  --color-on-surface:         #1b1c1c;
+  --color-on-surface-variant: #5d3f3e;
+  --color-inverse-surface:    #303030;
+  --color-inverse-on-surface: #f2f0f0;
+
+  /* ── Outline ──────────────────────────────────── */
+  --color-outline:         #916e6d;
+  --color-outline-variant: #e6bdbb;
+
+  /* ── Secondary ────────────────────────────────── */
+  --color-secondary:           #5f5e5e;
+  --color-secondary-container: #e4e2e1;
+
+  /* ── Error / Status ───────────────────────────── */
+  --color-error:     #ba1a1a;
+  --color-success:   #2d6a4f;
+  --color-warning:   #b45309;
+  --color-info:      #1d4ed8;
+
+  /* ── White / Black ────────────────────────────── */
+  --color-white: #ffffff;
+  --color-black: #000000;
+
+  /* ── Fonts ────────────────────────────────────── */
+  --font-sans:    'Inter', system-ui, sans-serif;
+  --font-heading: 'Montserrat', system-ui, sans-serif;
+  --font-mono:    'JetBrains Mono', monospace;
+
+  /* ── Border Radius ────────────────────────────── */
+  --radius-sm:   4px;
+  --radius:      8px;
+  --radius-md:   12px;
+  --radius-lg:   16px;
+  --radius-xl:   24px;
+  --radius-full: 9999px;
+
+  /* ── Shadows ──────────────────────────────────── */
+  --shadow-level-1: 0 0 0 1px #ededed;
+  --shadow-level-2: 0px 10px 30px rgba(0,0,0,0.04);
+  --shadow-level-3: 0px 20px 40px rgba(0,0,0,0.08);
+  --shadow-card:       0 1px 3px rgba(0,0,0,0.06), 0 1px 2px rgba(0,0,0,0.04);
+  --shadow-card-hover: 0px 10px 30px rgba(0,0,0,0.08);
+
+  /* ── Font Sizes ───────────────────────────────── */
+  --text-display:            48px;
+  --text-headline-lg:        32px;
+  --text-headline-lg-mobile: 24px;
+  --text-headline-md:        24px;
+  --text-body-lg:            18px;
+  --text-body-md:            16px;
+  --text-label-md:           14px;
+  --text-caption:            12px;
+
+  /* ── Animations ───────────────────────────────── */
+  --animate-fade-in:  fadeIn 0.4s ease-out;
+  --animate-slide-up: slideUp 0.4s ease-out;
+  --animate-shimmer:  shimmer 2s linear infinite;
+}
+
+@keyframes fadeIn {
+  from { opacity: 0; }
+  to   { opacity: 1; }
+}
+@keyframes slideUp {
+  from { opacity: 0; transform: translateY(24px); }
+  to   { opacity: 1; transform: translateY(0); }
+}
+@keyframes shimmer {
+  from { background-position: -200% 0; }
+  to   { background-position:  200% 0; }
+}
+
+
 @layer base {
   :root {
     --color-primary: #e31837;
