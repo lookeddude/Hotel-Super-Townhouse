@@ -119,7 +119,9 @@ export async function validateOffer(
   checkOut: string,
   subtotal: number
 ): Promise<{ valid: boolean; offer?: any; discount?: number; error?: string }> {
-  const today = new Date().toISOString().split('T')[0];
+  const today = new Date();
+  today.setHours(0, 0, 0, 0);
+
   const { data: offer, error } = await client
     .from('offers')
     .select('id, title, code, discount_type, discount_value, min_nights, min_booking_amount, valid_from, valid_until, is_active, usage_limit, used_count')
@@ -128,9 +130,11 @@ export async function validateOffer(
     .single();
 
   if (error || !offer) return { valid: false, error: 'Invalid promo code' };
-  if (offer.valid_from   && offer.valid_from   > today) return { valid: false, error: 'Offer not yet active' };
-  if (offer.valid_until  && offer.valid_until  < today) return { valid: false, error: 'Offer has expired' };
-  if (offer.usage_limit  && offer.used_count  >= offer.usage_limit) return { valid: false, error: 'Offer usage limit reached' };
+
+  // Compare using Date objects to avoid string comparison bugs with timestamps
+  if (offer.valid_from  && new Date(offer.valid_from)  > today) return { valid: false, error: 'Offer not yet active' };
+  if (offer.valid_until && new Date(offer.valid_until) < today) return { valid: false, error: 'Offer has expired' };
+  if (offer.usage_limit && offer.used_count >= offer.usage_limit) return { valid: false, error: 'Offer usage limit reached' };
   if (offer.min_booking_amount && subtotal < offer.min_booking_amount) return { valid: false, error: `Minimum booking amount ₹${offer.min_booking_amount} required` };
 
   const nights = calculateNights(checkIn, checkOut);
