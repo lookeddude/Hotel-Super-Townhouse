@@ -1190,6 +1190,36 @@ function BookPageInner() {
       });
       toast.success('Booking confirmed! 🎉');
       setStep(5);
+
+      // ── Send confirmation email (non-blocking) ──
+      try {
+        fetch('/api/email/send', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            templateId: 'booking_confirmed',
+            to:         state.guest.email,
+            toName:     state.guest.fullName,
+            vars: {
+              guest_name:        state.guest.fullName,
+              booking_reference: data.booking_reference ?? '',
+              room_name:         state.selectedRoom!.room_type_name,
+              room_number:       state.selectedRoom!.room_number,
+              check_in:          formatDate(state.checkIn),
+              check_out:         formatDate(state.checkOut),
+              nights:            String(state.breakdown!.nights),
+              num_adults:        String(state.adults),
+              total_amount:      formatINR(state.breakdown!.totalAmount),
+              payment_method:    state.guest.paymentMethod === 'pay_at_hotel' ? 'Pay at Hotel' : 'Online',
+              special_requests:  state.guest.specialRequests || 'None',
+              hotel_phone:       '+91 80 0000 0000',
+              hotel_email:       'info@supertownhouse.com',
+              dashboard_url:     window.location.origin + '/dashboard/bookings',
+            },
+          }),
+        }).catch(() => console.warn('[book] Confirmation email failed silently'));
+      } catch { /* silent */ }
+
     } catch (err: any) {
       toast.error(err?.message ?? 'An unexpected error occurred.');
     } finally {
