@@ -389,9 +389,12 @@ function SettingsTab() {
 function SlideshowTab() {
   const { supabase }             = useSupabase();
   const fileRef                  = useRef<HTMLInputElement>(null);
+  const mobileFileRefs            = useRef<Record<string, HTMLInputElement | null>>({});
+  const tabletFileRefs            = useRef<Record<string, HTMLInputElement | null>>({});
   const [slides, setSlides]      = useState<any[]>([]);
   const [loading, setLoading]    = useState(true);
   const [uploading, setUploading]= useState(false);
+  const [uploadingId, setUploadingId] = useState<string | null>(null);
   const [intervalVal, setIntervalVal] = useState(4);
   const [savingInterval, setSavingInterval] = useState(false);
   const [editId, setEditId]      = useState<string | null>(null);
@@ -467,6 +470,41 @@ function SlideshowTab() {
     toast.success(`Speed saved — slides change every ${intervalVal}s`);
   };
 
+  // Upload a device-specific image for an existing slide
+  const handleDeviceUpload = async (
+    e: React.ChangeEvent<HTMLInputElement>,
+    slideId: string,
+    device: 'mobile' | 'tablet'
+  ) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    if (file.size > 5 * 1024 * 1024) { toast.error('Image must be under 5MB'); return; }
+    setUploadingId(slideId + device);
+    const ext      = file.name.split('.').pop();
+    const fileName = `slide-${device}-${Date.now()}.${ext}`;
+    const { error: upErr } = await (supabase as any).storage.from('hero-slides').upload(fileName, file, { upsert: false });
+    if (upErr) { toast.error('Upload failed: ' + upErr.message); setUploadingId(null); return; }
+    const publicUrl = `${SUPABASE_URL}/storage/v1/object/public/hero-slides/${fileName}`;
+    const col = device === 'mobile' ? 'mobile_image_url' : 'tablet_image_url';
+    await (supabase as any).from('hero_slides').update({ [col]: publicUrl }).eq('id', slideId);
+    setSlides(prev => prev.map(s => s.id === slideId ? { ...s, [col]: publicUrl } : s));
+    toast.success(`${device === 'mobile' ? 'Mobile' : 'Tablet'} image uploaded!`);
+    setUploadingId(null);
+    e.target.value = '';
+  };
+
+  // Remove device-specific image (reverts to desktop fallback)
+  const removeDeviceImage = async (slideId: string, device: 'mobile' | 'tablet', imageUrl: string) => {
+    const col = device === 'mobile' ? 'mobile_image_url' : 'tablet_image_url';
+    if (imageUrl?.includes('/hero-slides/')) {
+      const path = imageUrl.split('/hero-slides/')[1];
+      await (supabase as any).storage.from('hero-slides').remove([path]);
+    }
+    await (supabase as any).from('hero_slides').update({ [col]: null }).eq('id', slideId);
+    setSlides(prev => prev.map(s => s.id === slideId ? { ...s, [col]: null } : s));
+    toast.success(`${device === 'mobile' ? 'Mobile' : 'Tablet'} image removed`);
+  };
+
   const INPUT = 'w-full px-3 py-1.5 border border-outline-variant rounded-lg text-sm focus:outline-none focus:border-primary';
 
   return (
@@ -526,65 +564,126 @@ function SlideshowTab() {
         ) : (
           <div className="divide-y divide-outline-variant/40">
             {slides.map((slide, idx) => (
-              <div key={slide.id} className="flex items-start gap-4 p-4">
+              <div key={slide.id} className="p-5 space-y-4">
 
-                {/* Thumbnail */}
-                <div className="relative w-28 rounded-lg overflow-hidden border border-outline-variant flex-shrink-0" style={{ height: 72 }}>
-                  <Image src={slide.image_url} alt={slide.title || `Slide ${idx+1}`} fill className="object-cover" sizes="112px" />
-                  <div className="absolute top-1 left-1 bg-black/60 text-white text-[9px] px-1 rounded">{idx+1}</div>
-                </div>
-
-                {/* Content */}
-                <div className="flex-1 min-w-0">
-                  {editId === slide.id ? (
-                    <div className="space-y-2">
-                      <input value={editForm.title} onChange={e => setEditForm(p => ({...p, title: e.target.value}))}
-                        placeholder="Title shown on slide (optional)" className={INPUT} />
-                      <input value={editForm.subtitle} onChange={e => setEditForm(p => ({...p, subtitle: e.target.value}))}
-                        placeholder="Subtitle shown on slide (optional)" className={INPUT} />
-                      <div className="flex gap-2">
-                        <button onClick={saveEdit} className="flex items-center gap-1 px-3 py-1.5 bg-primary text-white text-xs rounded-lg">
-                          <Check size={11} /> Save
-                        </button>
-                        <button onClick={() => setEditId(null)} className="flex items-center gap-1 px-3 py-1.5 border border-outline-variant text-xs rounded-lg">
-                          <X size={11} /> Cancel
-                        </button>
-                      </div>
-                    </div>
-                  ) : (
-                    <div>
-                      <p className="font-medium text-sm">{slide.title || <em className="text-on-surface-variant font-normal">No title</em>}</p>
-                      <p className="text-xs text-on-surface-variant mt-0.5">{slide.subtitle || <em>No subtitle</em>}</p>
-                      <div className="flex items-center gap-2 mt-2">
-                        <span className="text-xs text-on-surface-variant">Order:</span>
-                        <input type="number" min={1} value={slide.sort_order}
-                          onChange={e => updateOrder(slide.id, Number(e.target.value))}
-                          className="w-14 px-2 py-1 border border-outline-variant rounded text-xs text-center focus:outline-none focus:border-primary" />
-                      </div>
-                    </div>
-                  )}
-                </div>
-
-                {/* Actions */}
-                <div className="flex flex-col gap-1.5 flex-shrink-0">
-                  <button onClick={() => toggleActive(slide.id, slide.is_active)}
-                    className={`flex items-center gap-1 px-2.5 py-1.5 text-xs rounded-lg border transition-colors ${
-                      slide.is_active ? 'border-green-200 text-green-700 bg-green-50 hover:bg-green-100' : 'border-outline-variant text-on-surface-variant hover:bg-surface'
-                    }`}>
-                    {slide.is_active ? <ToggleRight size={13} /> : <ToggleLeft size={13} />}
-                    {slide.is_active ? 'Active' : 'Hidden'}
-                  </button>
-                  {editId !== slide.id && (
-                    <button onClick={() => { setEditId(slide.id); setEditForm({ title: slide.title||'', subtitle: slide.subtitle||'' }); }}
-                      className="flex items-center gap-1 px-2.5 py-1.5 text-xs border border-outline-variant rounded-lg hover:bg-surface">
-                      <Edit2 size={11} /> Edit Text
+                {/* Slide header */}
+                <div className="flex items-center justify-between flex-wrap gap-2">
+                  <span className="font-semibold text-sm text-on-surface">Slide {idx + 1}</span>
+                  <div className="flex gap-1.5">
+                    <button onClick={() => toggleActive(slide.id, slide.is_active)}
+                      className={`flex items-center gap-1 px-2.5 py-1 text-xs rounded-lg border transition-colors ${
+                        slide.is_active ? 'border-green-200 text-green-700 bg-green-50' : 'border-outline-variant text-on-surface-variant'
+                      }`}>
+                      {slide.is_active ? <ToggleRight size={12} /> : <ToggleLeft size={12} />}
+                      {slide.is_active ? 'Active' : 'Hidden'}
                     </button>
-                  )}
-                  <button onClick={() => deleteSlide(slide.id, slide.image_url)}
-                    className="flex items-center gap-1 px-2.5 py-1.5 text-xs border border-red-200 text-red-500 rounded-lg hover:bg-red-50">
-                    <Trash2 size={11} /> Delete
-                  </button>
+                    {editId !== slide.id && (
+                      <button onClick={() => { setEditId(slide.id); setEditForm({ title: slide.title||'', subtitle: slide.subtitle||'' }); }}
+                        className="flex items-center gap-1 px-2.5 py-1 text-xs border border-outline-variant rounded-lg hover:bg-surface">
+                        <Edit2 size={11} /> Edit Text
+                      </button>
+                    )}
+                    <button onClick={() => deleteSlide(slide.id, slide.image_url)}
+                      className="flex items-center gap-1 px-2.5 py-1 text-xs border border-red-200 text-red-500 rounded-lg hover:bg-red-50">
+                      <Trash2 size={11} /> Delete
+                    </button>
+                  </div>
                 </div>
+
+                {/* Edit title/subtitle */}
+                {editId === slide.id && (
+                  <div className="space-y-2 p-3 bg-surface rounded-lg">
+                    <input value={editForm.title} onChange={e => setEditForm(p => ({...p, title: e.target.value}))}
+                      placeholder="Title on slide (optional)" className={INPUT} />
+                    <input value={editForm.subtitle} onChange={e => setEditForm(p => ({...p, subtitle: e.target.value}))}
+                      placeholder="Subtitle on slide (optional)" className={INPUT} />
+                    <div className="flex gap-2">
+                      <button onClick={saveEdit} className="flex items-center gap-1 px-3 py-1.5 bg-primary text-white text-xs rounded-lg"><Check size={11} /> Save</button>
+                      <button onClick={() => setEditId(null)} className="flex items-center gap-1 px-3 py-1.5 border border-outline-variant text-xs rounded-lg"><X size={11} /> Cancel</button>
+                    </div>
+                  </div>
+                )}
+
+                {/* 3 image slots */}
+                <div className="grid grid-cols-3 gap-3">
+
+                  {/* Desktop */}
+                  <div className="space-y-1.5">
+                    <p className="text-[10px] font-semibold text-on-surface-variant uppercase tracking-wide">💻 Desktop <span className="font-normal normal-case">(1920×900)</span></p>
+                    <div className="relative rounded-lg overflow-hidden border border-outline-variant bg-surface" style={{ aspectRatio: '16/9' }}>
+                      <Image src={slide.image_url} alt="Desktop" fill className="object-cover" sizes="200px" />
+                    </div>
+                    <p className="text-[9px] text-green-600 font-medium">✓ Uploaded</p>
+                  </div>
+
+                  {/* Tablet */}
+                  <div className="space-y-1.5">
+                    <p className="text-[10px] font-semibold text-on-surface-variant uppercase tracking-wide">📱 Tablet <span className="font-normal normal-case">(1080×1080)</span></p>
+                    {slide.tablet_image_url ? (
+                      <div className="relative rounded-lg overflow-hidden border border-outline-variant bg-surface" style={{ aspectRatio: '1/1' }}>
+                        <Image src={slide.tablet_image_url} alt="Tablet" fill className="object-cover" sizes="200px" />
+                        <button onClick={() => removeDeviceImage(slide.id, 'tablet', slide.tablet_image_url)}
+                          className="absolute top-1 right-1 w-5 h-5 bg-red-500 text-white rounded-full flex items-center justify-center text-[9px]">
+                          <X size={9} />
+                        </button>
+                      </div>
+                    ) : (
+                      <>
+                        <input type="file" accept="image/*" className="hidden"
+                          ref={el => { tabletFileRefs.current[slide.id] = el; }}
+                          onChange={e => handleDeviceUpload(e, slide.id, 'tablet')} />
+                        <button onClick={() => tabletFileRefs.current[slide.id]?.click()}
+                          disabled={uploadingId === slide.id + 'tablet'}
+                          className="w-full flex flex-col items-center justify-center gap-1 border-2 border-dashed border-outline-variant rounded-lg text-on-surface-variant hover:border-primary hover:text-primary transition-colors disabled:opacity-50"
+                          style={{ aspectRatio: '1/1' }}>
+                          {uploadingId === slide.id + 'tablet'
+                            ? <Loader2 size={14} className="animate-spin" />
+                            : <><Upload size={14} /><span className="text-[9px]">Upload</span></>}
+                        </button>
+                      </>
+                    )}
+                    <p className="text-[9px] text-on-surface-variant">{slide.tablet_image_url ? '✓ Custom' : 'Using desktop fallback'}</p>
+                  </div>
+
+                  {/* Mobile */}
+                  <div className="space-y-1.5">
+                    <p className="text-[10px] font-semibold text-on-surface-variant uppercase tracking-wide">📱 Mobile <span className="font-normal normal-case">(900×1200)</span></p>
+                    {slide.mobile_image_url ? (
+                      <div className="relative rounded-lg overflow-hidden border border-outline-variant bg-surface" style={{ aspectRatio: '3/4' }}>
+                        <Image src={slide.mobile_image_url} alt="Mobile" fill className="object-cover" sizes="200px" />
+                        <button onClick={() => removeDeviceImage(slide.id, 'mobile', slide.mobile_image_url)}
+                          className="absolute top-1 right-1 w-5 h-5 bg-red-500 text-white rounded-full flex items-center justify-center text-[9px]">
+                          <X size={9} />
+                        </button>
+                      </div>
+                    ) : (
+                      <>
+                        <input type="file" accept="image/*" className="hidden"
+                          ref={el => { mobileFileRefs.current[slide.id] = el; }}
+                          onChange={e => handleDeviceUpload(e, slide.id, 'mobile')} />
+                        <button onClick={() => mobileFileRefs.current[slide.id]?.click()}
+                          disabled={uploadingId === slide.id + 'mobile'}
+                          className="w-full flex flex-col items-center justify-center gap-1 border-2 border-dashed border-outline-variant rounded-lg text-on-surface-variant hover:border-primary hover:text-primary transition-colors disabled:opacity-50"
+                          style={{ aspectRatio: '3/4' }}>
+                          {uploadingId === slide.id + 'mobile'
+                            ? <Loader2 size={14} className="animate-spin" />
+                            : <><Upload size={14} /><span className="text-[9px]">Upload</span></>}
+                        </button>
+                      </>
+                    )}
+                    <p className="text-[9px] text-on-surface-variant">{slide.mobile_image_url ? '✓ Custom' : 'Using desktop fallback'}</p>
+                  </div>
+
+                </div>
+
+                {/* Order */}
+                <div className="flex items-center gap-2">
+                  <span className="text-xs text-on-surface-variant">Display Order:</span>
+                  <input type="number" min={1} value={slide.sort_order}
+                    onChange={e => updateOrder(slide.id, Number(e.target.value))}
+                    className="w-16 px-2 py-1 border border-outline-variant rounded text-xs text-center focus:outline-none focus:border-primary" />
+                </div>
+
               </div>
             ))}
           </div>
