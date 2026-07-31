@@ -6,6 +6,7 @@ import { BedDouble, Users, Maximize2, Star, Coffee, CheckCircle2 } from 'lucide-
 import { createServerClient } from '@/lib/supabase/server';
 import { RoomBookingWidget } from '@/features/rooms/RoomBookingWidget';
 import { RoomImageSlideshow } from '@/components/rooms/RoomImageSlideshow';
+import { GuestReviewSection } from '@/components/rooms/GuestReviewSection';
 
 interface RoomDetailPageProps {
   params: Promise<{ id: string }>;
@@ -200,6 +201,9 @@ export default async function RoomDetailPage({ params }: RoomDetailPageProps) {
                 {availableCount > 0 ? `${availableCount} room${availableCount > 1 ? 's' : ''} currently available` : 'No rooms available at this time'}
               </p>
             </div>
+
+            {/* Guest Reviews */}
+            <GuestReviewSection roomTypeId={roomType.id} roomName={roomType.name} />
           </div>
 
           {/* Right — Booking Widget */}

@@ -11,6 +11,43 @@ import type { SupabaseClient } from '@supabase/supabase-js';
 
 type Client = SupabaseClient<any>;
 
+export interface ReviewSubmission {
+  room_type_id: string;
+  booking_id?:  string;
+  overall_rating: number;
+  cleanliness_rating?: number;
+  service_rating?: number;
+  value_rating?: number;
+  title?: string;
+  comment: string;
+}
+
+/** Guest submits a new review */
+export async function submitReview(client: Client, data: ReviewSubmission) {
+  const { data: { user } } = await client.auth.getUser();
+  if (!user) return { error: { message: 'You must be logged in to leave a review.' } };
+  return client.from('reviews').insert({
+    ...data,
+    guest_id: user.id,
+    status: 'pending',
+  }).select().single();
+}
+
+/** Fetch approved reviews for a specific room type (public) */
+export async function getRoomReviews(client: Client, roomTypeId: string) {
+  return client
+    .from('reviews')
+    .select(`
+      id, overall_rating, cleanliness_rating, service_rating, value_rating,
+      title, comment, admin_reply, admin_replied_at, created_at, is_verified_guest,
+      profiles:guest_id(full_name, avatar_url)
+    `)
+    .eq('room_type_id', roomTypeId)
+    .eq('status', 'approved')
+    .order('created_at', { ascending: false })
+    .limit(20);
+}
+
 export async function getReviews(
   client: Client,
   options?: { status?: string; page?: number; perPage?: number }
