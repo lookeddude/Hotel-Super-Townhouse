@@ -252,25 +252,23 @@ export default function RoomsPage() {
     }
     setTypeSaving(true);
     try {
-      const amenitiesArr = typeForm.amenities
-        ? typeForm.amenities.split(',').map((a: string) => a.trim()).filter(Boolean)
-        : [];
+      // Store amenities as plain text (comma-separated) matching DB TEXT column
       const payload = {
-        name: typeForm.name,
-        slug: typeForm.slug || slugify(typeForm.name),
-        description: typeForm.description || null,
-        base_price: Number(typeForm.base_price),
-        weekend_price: typeForm.weekend_price ? Number(typeForm.weekend_price) : null,
-        bed_type: typeForm.bed_type || null,
-        size_sqft: typeForm.size_sqft ? Number(typeForm.size_sqft) : null,
-        max_adults: Number(typeForm.max_adults),
-        max_children: Number(typeForm.max_children),
-        max_occupancy: Number(typeForm.max_adults) + Number(typeForm.max_children),
-        view_type: typeForm.view_type || null,
-        image_url: typeForm.image_url || null,
-        amenities: amenitiesArr,
+        name:               typeForm.name,
+        slug:               typeForm.slug || slugify(typeForm.name),
+        description:        typeForm.description || null,
+        base_price:         Number(typeForm.base_price),
+        weekend_price:      typeForm.weekend_price ? Number(typeForm.weekend_price) : null,
+        bed_type:           typeForm.bed_type || null,
+        size_sqft:          typeForm.size_sqft ? Number(typeForm.size_sqft) : null,
+        max_adults:         Number(typeForm.max_adults),
+        max_children:       Number(typeForm.max_children),
+        max_occupancy:      Number(typeForm.max_adults) + Number(typeForm.max_children),
+        view_type:          typeForm.view_type || null,
+        image_url:          typeForm.image_url || null,
+        amenities:          typeForm.amenities || null,
         breakfast_included: typeForm.breakfast_included,
-        is_active: typeForm.is_active,
+        is_active:          typeForm.is_active,
       };
       if (editingType) {
         const { error } = await supabase
