@@ -1,7 +1,8 @@
 'use client';
 
-import { useEffect, useState, useCallback } from 'react';
-import { Save, Loader2, Plus, Trash2, Edit2, Check, X } from 'lucide-react';
+import { useEffect, useState, useCallback, useRef } from 'react';
+import Image from 'next/image';
+import { Save, Loader2, Plus, Trash2, Edit2, Check, X, ImageIcon, Upload, Clock, ToggleLeft, ToggleRight, GripVertical } from 'lucide-react';
 import { useSupabase } from '@/providers/SupabaseProvider';
 import {
   getHotelInfo, updateHotelInfo,
@@ -11,15 +12,16 @@ import {
 import { getContactMessages, markContactResolved, deleteContactMessage } from '@/services/contactService';
 import { toast } from 'sonner';
 
-type Tab = 'hotel' | 'faq' | 'contacts' | 'settings';
+type Tab = 'hotel' | 'faq' | 'contacts' | 'settings' | 'slideshow';
 
 export default function AdminCMSPage() {
   const [activeTab, setActiveTab] = useState<Tab>('hotel');
   const TABS: { id: Tab; label: string }[] = [
-    { id: 'hotel', label: 'Hotel Info' },
-    { id: 'faq', label: 'FAQ' },
-    { id: 'contacts', label: 'Contact Requests' },
-    { id: 'settings', label: 'Site Settings' },
+    { id: 'hotel',     label: 'Hotel Info' },
+    { id: 'faq',       label: 'FAQ' },
+    { id: 'contacts',  label: 'Contact Requests' },
+    { id: 'settings',  label: 'Site Settings' },
+    { id: 'slideshow', label: '🆼 Hero Slideshow' },
   ];
 
   return (
@@ -38,10 +40,11 @@ export default function AdminCMSPage() {
           ))}
         </nav>
       </div>
-      {activeTab === 'hotel' && <HotelInfoTab />}
-      {activeTab === 'faq' && <FAQTab />}
-      {activeTab === 'contacts' && <ContactsTab />}
-      {activeTab === 'settings' && <SettingsTab />}
+      {activeTab === 'hotel'     && <HotelInfoTab />}
+      {activeTab === 'faq'       && <FAQTab />}
+      {activeTab === 'contacts'  && <ContactsTab />}
+      {activeTab === 'settings'  && <SettingsTab />}
+      {activeTab === 'slideshow' && <SlideshowTab />}
     </div>
   );
 }
@@ -377,6 +380,215 @@ function SettingsTab() {
             </div>
           );
         })}
+      </div>
+    </div>
+  );
+}
+
+// ─── Hero Slideshow Manager ──────────────────────────────────────────────────────
+function SlideshowTab() {
+  const { supabase }             = useSupabase();
+  const fileRef                  = useRef<HTMLInputElement>(null);
+  const [slides, setSlides]      = useState<any[]>([]);
+  const [loading, setLoading]    = useState(true);
+  const [uploading, setUploading]= useState(false);
+  const [intervalVal, setIntervalVal] = useState(4);
+  const [savingInterval, setSavingInterval] = useState(false);
+  const [editId, setEditId]      = useState<string | null>(null);
+  const [editForm, setEditForm]  = useState({ title: '', subtitle: '' });
+
+  const SUPABASE_URL = process.env.NEXT_PUBLIC_SUPABASE_URL!;
+
+  const load = useCallback(async () => {
+    setLoading(true);
+    const [{ data: sl }, { data: st }] = await Promise.all([
+      (supabase as any).from('hero_slides').select('*').order('sort_order', { ascending: true }),
+      (supabase as any).from('settings').select('value').eq('key', 'slideshow_interval').single(),
+    ]);
+    setSlides(sl ?? []);
+    if (st?.value) setIntervalVal(Number(st.value));
+    setLoading(false);
+  }, [supabase]);
+
+  useEffect(() => { load(); }, [load]);
+
+  const handleUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    if (file.size > 5 * 1024 * 1024) { toast.error('Image must be under 5MB'); return; }
+    setUploading(true);
+    const ext      = file.name.split('.').pop();
+    const fileName = `slide-${Date.now()}.${ext}`;
+    const { error: upErr } = await (supabase as any).storage.from('hero-slides').upload(fileName, file, { upsert: false });
+    if (upErr) { toast.error('Upload failed: ' + upErr.message); setUploading(false); return; }
+    const publicUrl = `${SUPABASE_URL}/storage/v1/object/public/hero-slides/${fileName}`;
+    const { error: dbErr } = await (supabase as any).from('hero_slides').insert({
+      image_url: publicUrl, title: '', subtitle: '', sort_order: (slides.length + 1), is_active: true,
+    });
+    if (dbErr) toast.error('DB error'); else { toast.success('Slide added!'); load(); }
+    setUploading(false);
+    if (fileRef.current) fileRef.current.value = '';
+  };
+
+  const toggleActive = async (id: string, current: boolean) => {
+    await (supabase as any).from('hero_slides').update({ is_active: !current }).eq('id', id);
+    setSlides(prev => prev.map(s => s.id === id ? { ...s, is_active: !current } : s));
+    toast.success(!current ? 'Slide shown on website' : 'Slide hidden from website');
+  };
+
+  const deleteSlide = async (id: string, imageUrl: string) => {
+    if (!confirm('Delete this slide?')) return;
+    if (imageUrl.includes('/hero-slides/')) {
+      const path = imageUrl.split('/hero-slides/')[1];
+      await (supabase as any).storage.from('hero-slides').remove([path]);
+    }
+    await (supabase as any).from('hero_slides').delete().eq('id', id);
+    setSlides(prev => prev.filter(s => s.id !== id));
+    toast.success('Slide deleted');
+  };
+
+  const saveEdit = async () => {
+    if (!editId) return;
+    await (supabase as any).from('hero_slides').update({ title: editForm.title, subtitle: editForm.subtitle }).eq('id', editId);
+    setSlides(prev => prev.map(s => s.id === editId ? { ...s, ...editForm } : s));
+    setEditId(null);
+    toast.success('Slide updated');
+  };
+
+  const updateOrder = async (id: string, order: number) => {
+    await (supabase as any).from('hero_slides').update({ sort_order: order }).eq('id', id);
+    setSlides(prev => [...prev.map(s => s.id === id ? { ...s, sort_order: order } : s)].sort((a,b) => a.sort_order - b.sort_order));
+  };
+
+  const saveInterval = async () => {
+    setSavingInterval(true);
+    await (supabase as any).from('settings').update({ value: String(intervalVal) }).eq('key', 'slideshow_interval');
+    setSavingInterval(false);
+    toast.success(`Speed saved — slides change every ${intervalVal}s`);
+  };
+
+  const INPUT = 'w-full px-3 py-1.5 border border-outline-variant rounded-lg text-sm focus:outline-none focus:border-primary';
+
+  return (
+    <div className="space-y-5 pt-4">
+
+      {/* Interval */}
+      <div className="bg-white rounded-xl border border-outline-variant p-5">
+        <div className="flex items-center gap-2 mb-4">
+          <Clock size={16} className="text-primary" />
+          <h3 className="font-semibold text-on-surface">Slideshow Speed</h3>
+        </div>
+        <div className="flex items-center gap-4 flex-wrap">
+          <span className="text-sm text-on-surface-variant">Change image every</span>
+          <input type="number" min={2} max={30} value={intervalVal}
+            onChange={e => setIntervalVal(Number(e.target.value))}
+            className="w-20 px-3 py-2 border border-outline-variant rounded-lg text-sm text-center focus:outline-none focus:border-primary" />
+          <span className="text-sm text-on-surface-variant">seconds</span>
+          <button onClick={saveInterval} disabled={savingInterval}
+            className="flex items-center gap-2 px-4 py-2 bg-primary text-white text-sm rounded-lg hover:opacity-90 disabled:opacity-50">
+            {savingInterval ? <Loader2 size={13} className="animate-spin" /> : <Save size={13} />} Save Speed
+          </button>
+        </div>
+        <p className="text-xs text-on-surface-variant mt-2">Min: 2s &nbsp;|&nbsp; Max: 30s. Changes apply instantly on the website without redeployment.</p>
+      </div>
+
+      {/* Upload */}
+      <div className="bg-white rounded-xl border border-outline-variant p-5">
+        <div className="flex items-center gap-2 mb-4">
+          <Upload size={16} className="text-primary" />
+          <h3 className="font-semibold text-on-surface">Upload New Slide</h3>
+        </div>
+        <input ref={fileRef} type="file" accept="image/jpeg,image/jpg,image/png,image/webp" onChange={handleUpload} className="hidden" />
+        <button onClick={() => fileRef.current?.click()} disabled={uploading}
+          className="flex items-center justify-center gap-2 px-5 py-4 border-2 border-dashed border-outline-variant rounded-xl text-sm text-on-surface-variant hover:border-primary hover:text-primary transition-colors disabled:opacity-50 w-full">
+          {uploading
+            ? <><Loader2 size={16} className="animate-spin" /> Uploading…</>
+            : <><ImageIcon size={16} /> Click to upload &nbsp;(JPG, PNG, WebP &middot; max 5MB)</>}
+        </button>
+        <p className="text-xs text-on-surface-variant mt-2">Recommended: 1920×1080px landscape. After upload you can add a title and subtitle.</p>
+      </div>
+
+      {/* Slides */}
+      <div className="bg-white rounded-xl border border-outline-variant overflow-hidden">
+        <div className="px-5 py-4 border-b border-outline-variant flex items-center justify-between">
+          <h3 className="font-semibold text-on-surface">All Slides ({slides.length})</h3>
+          <button onClick={load} className="text-xs text-primary hover:underline">Refresh</button>
+        </div>
+
+        {loading ? (
+          <div className="p-8 text-center"><Loader2 size={20} className="animate-spin mx-auto text-on-surface-variant" /></div>
+        ) : slides.length === 0 ? (
+          <div className="p-12 text-center text-on-surface-variant">
+            <ImageIcon size={40} className="mx-auto mb-3 opacity-20" />
+            <p className="font-medium">No slides yet</p>
+            <p className="text-sm mt-1">Upload your first slide above</p>
+          </div>
+        ) : (
+          <div className="divide-y divide-outline-variant/40">
+            {slides.map((slide, idx) => (
+              <div key={slide.id} className="flex items-start gap-4 p-4">
+
+                {/* Thumbnail */}
+                <div className="relative w-28 rounded-lg overflow-hidden border border-outline-variant flex-shrink-0" style={{ height: 72 }}>
+                  <Image src={slide.image_url} alt={slide.title || `Slide ${idx+1}`} fill className="object-cover" sizes="112px" />
+                  <div className="absolute top-1 left-1 bg-black/60 text-white text-[9px] px-1 rounded">{idx+1}</div>
+                </div>
+
+                {/* Content */}
+                <div className="flex-1 min-w-0">
+                  {editId === slide.id ? (
+                    <div className="space-y-2">
+                      <input value={editForm.title} onChange={e => setEditForm(p => ({...p, title: e.target.value}))}
+                        placeholder="Title shown on slide (optional)" className={INPUT} />
+                      <input value={editForm.subtitle} onChange={e => setEditForm(p => ({...p, subtitle: e.target.value}))}
+                        placeholder="Subtitle shown on slide (optional)" className={INPUT} />
+                      <div className="flex gap-2">
+                        <button onClick={saveEdit} className="flex items-center gap-1 px-3 py-1.5 bg-primary text-white text-xs rounded-lg">
+                          <Check size={11} /> Save
+                        </button>
+                        <button onClick={() => setEditId(null)} className="flex items-center gap-1 px-3 py-1.5 border border-outline-variant text-xs rounded-lg">
+                          <X size={11} /> Cancel
+                        </button>
+                      </div>
+                    </div>
+                  ) : (
+                    <div>
+                      <p className="font-medium text-sm">{slide.title || <em className="text-on-surface-variant font-normal">No title</em>}</p>
+                      <p className="text-xs text-on-surface-variant mt-0.5">{slide.subtitle || <em>No subtitle</em>}</p>
+                      <div className="flex items-center gap-2 mt-2">
+                        <span className="text-xs text-on-surface-variant">Order:</span>
+                        <input type="number" min={1} value={slide.sort_order}
+                          onChange={e => updateOrder(slide.id, Number(e.target.value))}
+                          className="w-14 px-2 py-1 border border-outline-variant rounded text-xs text-center focus:outline-none focus:border-primary" />
+                      </div>
+                    </div>
+                  )}
+                </div>
+
+                {/* Actions */}
+                <div className="flex flex-col gap-1.5 flex-shrink-0">
+                  <button onClick={() => toggleActive(slide.id, slide.is_active)}
+                    className={`flex items-center gap-1 px-2.5 py-1.5 text-xs rounded-lg border transition-colors ${
+                      slide.is_active ? 'border-green-200 text-green-700 bg-green-50 hover:bg-green-100' : 'border-outline-variant text-on-surface-variant hover:bg-surface'
+                    }`}>
+                    {slide.is_active ? <ToggleRight size={13} /> : <ToggleLeft size={13} />}
+                    {slide.is_active ? 'Active' : 'Hidden'}
+                  </button>
+                  {editId !== slide.id && (
+                    <button onClick={() => { setEditId(slide.id); setEditForm({ title: slide.title||'', subtitle: slide.subtitle||'' }); }}
+                      className="flex items-center gap-1 px-2.5 py-1.5 text-xs border border-outline-variant rounded-lg hover:bg-surface">
+                      <Edit2 size={11} /> Edit Text
+                    </button>
+                  )}
+                  <button onClick={() => deleteSlide(slide.id, slide.image_url)}
+                    className="flex items-center gap-1 px-2.5 py-1.5 text-xs border border-red-200 text-red-500 rounded-lg hover:bg-red-50">
+                    <Trash2 size={11} /> Delete
+                  </button>
+                </div>
+              </div>
+            ))}
+          </div>
+        )}
       </div>
     </div>
   );
