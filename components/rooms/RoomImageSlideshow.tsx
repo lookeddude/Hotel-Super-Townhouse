@@ -96,7 +96,7 @@ export function RoomImageSlideshow({ images, roomName }: RoomImageSlideshowProps
     <div className="w-full flex flex-col">
       {/* ── Main Hero Image ── */}
       <div
-        className="relative h-[50vh] md:h-[62vh] lg:h-[72vh] w-full overflow-hidden bg-gray-900"
+        className="relative h-[50vh] md:h-[62vh] lg:h-[87vh] w-full overflow-hidden bg-gray-900"
         onMouseEnter={() => setIsHovered(true)}
         onMouseLeave={() => setIsHovered(false)}
         onTouchStart={handleTouchStart}
