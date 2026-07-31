@@ -148,8 +148,15 @@ function OfferModal({ offer, supabase, onClose, onSaved }: any) {
     e.preventDefault();
     if (!form.title) { toast.error('Title is required'); return; }
     setIsSaving(true);
+    const slug = form.title
+      .toLowerCase()
+      .replace(/[^a-z0-9]+/g, '-')
+      .replace(/^-|-$/g, '')
+      + '-' + Math.random().toString(36).slice(2, 7);
+
     const payload = {
       ...form,
+      slug: isEdit ? offer.slug : slug,
       discount_value: form.discount_value ? Number(form.discount_value) : null,
       min_nights: form.min_nights ? Number(form.min_nights) : null,
       code: form.code?.toUpperCase() || null,
