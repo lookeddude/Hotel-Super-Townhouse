@@ -62,10 +62,11 @@ ${preheader ? `<div style="display:none;max-height:0;overflow:hidden;color:${BG}
       </td></tr>
       <!-- FOOTER -->
       <tr><td style="background:${BG};border:1px solid ${BORDER};border-top:none;border-radius:0 0 12px 12px;padding:24px 40px;text-align:center;">
-        <p style="margin:0;font-size:12px;color:${SUBTEXT};">Super Townhouse · Karol Bagh, New Delhi 110005</p>
+        <p style="margin:0;font-size:12px;color:${SUBTEXT};">Super Townhouse &middot; CA Plot 87, near Aster Hospital, Sadara Mangala Industrial Area, Bengaluru 560048</p>
         <p style="margin:6px 0 0;font-size:11px;color:${SUBTEXT};">
-          <a href="tel:+911141234567" style="color:${SUBTEXT};text-decoration:none;">+91 11 4123 4567</a> ·
-          <a href="mailto:info@supertownhouse.com" style="color:${SUBTEXT};text-decoration:none;">info@supertownhouse.com</a>
+          <a href="tel:+918000000000" style="color:${SUBTEXT};text-decoration:none;">+91 80 0000 0000</a> &middot;
+          <a href="mailto:info@supertownhouse.com" style="color:${SUBTEXT};text-decoration:none;">info@supertownhouse.com</a> &middot;
+          <a href="https://www.google.com/travel/hotels/s/wwt7siZmQoKJDQ6f7" style="color:${SUBTEXT};text-decoration:none;">📍 Get Directions</a>
         </p>
         <p style="margin:12px 0 0;font-size:11px;color:${SUBTEXT};">
           You received this email because you have an account at Super Townhouse.<br/>
@@ -163,7 +164,7 @@ export function renderEmailTemplate(
       };
     }
 
-    // ── 4. Booking Confirmed ─────────────────────────────────────────────────
+    // ── 4. Booking Confirmed ─────────────────────────────────────────────────────
     case 'booking_confirmed': {
       const html = baseLayout(`
         ${heading('Booking Confirmed!', '✅')}
@@ -177,8 +178,16 @@ export function renderEmailTemplate(
           ['Total Amount', v('total_amount')],
           ['Payment Status', v('payment_status', 'Pending')]
         )}
-        ${btn('View Booking', v('booking_url'))}
-        ${para('Check-in time: 2:00 PM · Check-out time: 12:00 PM. Need help? Call us at +91 11 4123 4567.')}
+        ${btn('View My Booking', v('booking_url'))}
+        <div style="background:#F8F7FF;border-radius:8px;padding:16px 20px;margin:20px 0;">
+          <p style="margin:0 0 6px;font-size:13px;font-weight:700;color:#1C1B1F;">📍 Hotel Location</p>
+          <p style="margin:0 0 10px;font-size:13px;color:#6B6B7C;line-height:1.6;">CA, Plot Number 1, 87, near Aster Hospital,<br/>Sadara Mangala Industrial Area,<br/>Bengaluru, Karnataka 560048</p>
+          <a href="https://www.google.com/travel/hotels/s/wwt7siZmQoKJDQ6f7" target="_blank"
+            style="display:inline-block;font-size:12px;font-weight:600;color:#7C3AED;text-decoration:none;border:1px solid #7C3AED;border-radius:6px;padding:6px 14px;">
+            🗺️ Open in Google Maps
+          </a>
+        </div>
+        ${para('Check-in: 2:00 PM &nbsp;|&nbsp; Check-out: 12:00 PM &nbsp;|&nbsp; Need help? <a href="tel:+918000000000" style="color:#7C3AED;">Call us</a>')}
       `, `Booking ${v('booking_ref')} confirmed — ${v('check_in')} to ${v('check_out')}`);
 
       return {
