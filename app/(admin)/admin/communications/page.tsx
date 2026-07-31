@@ -63,12 +63,16 @@ function MessageModal({ msg, onClose, onMarkRead, onMarkResolved, onDelete }: {
   // Helper: clean phone for WhatsApp (remove spaces, dashes, +)
   const waNumber = (num: string) => num.replace(/[^0-9]/g, '');
 
-  // Gmail compose URL
-  const gmailUrl = `https://mail.google.com/mail/?view=cm&to=${encodeURIComponent(msg.email)}&su=${encodeURIComponent('Re: ' + (msg.subject || 'Your Inquiry'))}&body=${encodeURIComponent(`Hi ${msg.full_name},\n\n`)}`;
+  const inquiry = msg.subject || 'General Inquiry';
 
-  // WhatsApp URL
-  const waUrl = msg.whatsapp
-    ? `https://wa.me/${waNumber(msg.whatsapp)}?text=${encodeURIComponent(`Hi ${msg.full_name}, thank you for contacting Super Townhouse! Regarding your inquiry: "${msg.subject || 'General Inquiry'}" — `)}`
+  // Gmail compose URL — subject shows user inquiry, body has full template
+  const gmailBody = `Hi ${msg.full_name},\nThank you for contacting Super Townhouse!\nThis Email is regarding your inquiry about ${inquiry}.\nWe would like to inform you that `;
+  const gmailUrl  = `https://mail.google.com/mail/?view=cm&to=${encodeURIComponent(msg.email)}&su=${encodeURIComponent(`Re: '${inquiry}'`)}&body=${encodeURIComponent(gmailBody)}`;
+
+  // WhatsApp pre-filled template
+  const waText = `Hi ${msg.full_name},\nThank you for contacting Super Townhouse!\nThis message is regarding your inquiry about ${inquiry}.\nWe would like to inform you that `;
+  const waUrl  = msg.whatsapp
+    ? `https://wa.me/${waNumber(msg.whatsapp)}?text=${encodeURIComponent(waText)}`
     : null;
 
   return (
@@ -334,13 +338,21 @@ export default function CommunicationsPage() {
                     {new Date(msg.created_at).toLocaleDateString('en-IN', { day: '2-digit', month: 'short', hour: '2-digit', minute: '2-digit' })}
                   </p>
                   <div className="flex gap-1" onClick={e => e.stopPropagation()}>
-                    <a href={`https://mail.google.com/mail/?view=cm&to=${encodeURIComponent(msg.email)}&su=${encodeURIComponent('Re: ' + (msg.subject || 'Your Inquiry'))}&body=${encodeURIComponent('Hi ' + msg.full_name + ',\n\n')}`}
+                    <a href={(() => {
+                        const inq = msg.subject || 'General Inquiry';
+                        const body = `Hi ${msg.full_name},\nThank you for contacting Super Townhouse!\nThis Email is regarding your inquiry about ${inq}.\nWe would like to inform you that `;
+                        return `https://mail.google.com/mail/?view=cm&to=${encodeURIComponent(msg.email)}&su=${encodeURIComponent(`Re: '${inq}'`)}&body=${encodeURIComponent(body)}`;
+                      })()}
                       target="_blank" rel="noopener noreferrer"
                       className="p-1.5 rounded hover:bg-primary/10 text-on-surface-variant hover:text-primary transition-colors" title="Reply via Gmail">
                       <Mail size={13} />
                     </a>
                     {msg.whatsapp && (
-                      <a href={`https://wa.me/${msg.whatsapp.replace(/[^0-9]/g,'')}?text=${encodeURIComponent('Hi ' + msg.full_name + ', thank you for contacting Super Townhouse! ')}`}
+                      <a href={(() => {
+                          const inq = msg.subject || 'General Inquiry';
+                          const text = `Hi ${msg.full_name},\nThank you for contacting Super Townhouse!\nThis message is regarding your inquiry about ${inq}.\nWe would like to inform you that `;
+                          return `https://wa.me/${msg.whatsapp.replace(/[^0-9]/g,'')}?text=${encodeURIComponent(text)}`;
+                        })()}
                         target="_blank" rel="noopener noreferrer"
                         className="p-1.5 rounded hover:bg-green-50 text-on-surface-variant hover:text-green-600 transition-colors" title="Reply on WhatsApp">
                         <MessageCircle size={13} />
