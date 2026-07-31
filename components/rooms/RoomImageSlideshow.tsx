@@ -77,7 +77,7 @@ export function RoomImageSlideshow({ images, roomName }: RoomImageSlideshowProps
   // No valid images at all → show placeholder
   if (!images.length || (failedIndexes.size >= images.length && images.length > 0)) {
     return (
-      <div className="relative bg-gray-900 h-72 md:h-[480px] w-full flex items-center justify-center">
+      <div className="relative h-[50vh] md:h-[62vh] lg:h-[72vh] w-full flex items-center justify-center bg-gray-900">
         <BedDouble size={80} className="text-white/20" />
         <div className="absolute inset-0 bg-gradient-to-t from-black/80 to-transparent pointer-events-none" />
         <div className="absolute bottom-0 left-0 right-0 p-6 md:p-10 text-white pointer-events-none">
@@ -96,7 +96,7 @@ export function RoomImageSlideshow({ images, roomName }: RoomImageSlideshowProps
     <div className="w-full flex flex-col">
       {/* ── Main Hero Image ── */}
       <div
-        className="relative h-72 md:h-[480px] w-full overflow-hidden bg-gray-900"
+        className="relative h-[50vh] md:h-[62vh] lg:h-[72vh] w-full overflow-hidden bg-gray-900"
         onMouseEnter={() => setIsHovered(true)}
         onMouseLeave={() => setIsHovered(false)}
         onTouchStart={handleTouchStart}
