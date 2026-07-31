@@ -122,16 +122,16 @@ export async function validateOffer(
   const today = new Date().toISOString().split('T')[0];
   const { data: offer, error } = await client
     .from('offers')
-    .select('id, title, code, discount_type, discount_value, min_nights, min_amount, valid_from, valid_to, is_active, max_uses, current_uses')
+    .select('id, title, code, discount_type, discount_value, min_nights, min_booking_amount, valid_from, valid_until, is_active, usage_limit, used_count')
     .eq('code', code.toUpperCase())
     .eq('is_active', true)
     .single();
 
   if (error || !offer) return { valid: false, error: 'Invalid promo code' };
-  if (offer.valid_from && offer.valid_from > today) return { valid: false, error: 'Offer not yet active' };
-  if (offer.valid_to && offer.valid_to < today) return { valid: false, error: 'Offer has expired' };
-  if (offer.max_uses && offer.current_uses >= offer.max_uses) return { valid: false, error: 'Offer usage limit reached' };
-  if (offer.min_amount && subtotal < offer.min_amount) return { valid: false, error: `Minimum booking amount ₹${offer.min_amount} required` };
+  if (offer.valid_from   && offer.valid_from   > today) return { valid: false, error: 'Offer not yet active' };
+  if (offer.valid_until  && offer.valid_until  < today) return { valid: false, error: 'Offer has expired' };
+  if (offer.usage_limit  && offer.used_count  >= offer.usage_limit) return { valid: false, error: 'Offer usage limit reached' };
+  if (offer.min_booking_amount && subtotal < offer.min_booking_amount) return { valid: false, error: `Minimum booking amount ₹${offer.min_booking_amount} required` };
 
   const nights = calculateNights(checkIn, checkOut);
   if (offer.min_nights && nights < offer.min_nights) return { valid: false, error: `Minimum ${offer.min_nights} nights required` };
@@ -142,6 +142,7 @@ export async function validateOffer(
 
   return { valid: true, offer, discount };
 }
+
 
 // ─── Formatting ──────────────────────────────────────────────────────────────
 
