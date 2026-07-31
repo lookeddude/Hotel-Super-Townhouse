@@ -262,7 +262,7 @@ export default function RoomsPage() {
         base_price:   Number(typeForm.base_price),
         max_occupancy: Number(typeForm.max_adults) + Number(typeForm.max_children),
         is_active:    typeForm.is_active,
-        image_url:    typeForm.images?.[0] || null,
+        image_url:    typeForm.image_url || typeForm.images?.[0] || null,
       };
 
       // ── Extra columns — only exist after running the ALTER TABLE SQL ──
@@ -274,7 +274,7 @@ export default function RoomsPage() {
         max_children:       Number(typeForm.max_children),
         max_occupancy:      Number(typeForm.max_adults) + Number(typeForm.max_children),
         view_type:          typeForm.view_type || null,
-        image_url:          typeForm.images?.[0] || null,
+        image_url:          typeForm.image_url || typeForm.images?.[0] || null,
         images:             typeForm.images?.filter(Boolean) ?? [],
         amenities:          typeForm.amenities || null,
         breakfast_included: typeForm.breakfast_included,
