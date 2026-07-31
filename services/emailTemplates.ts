@@ -64,7 +64,7 @@ ${preheader ? `<div style="display:none;max-height:0;overflow:hidden;color:${BG}
       <tr><td style="background:${BG};border:1px solid ${BORDER};border-top:none;border-radius:0 0 12px 12px;padding:24px 40px;text-align:center;">
         <p style="margin:0;font-size:12px;color:${SUBTEXT};">Super Townhouse &middot; CA Plot 87, near Aster Hospital, Sadara Mangala Industrial Area, Bengaluru 560048</p>
         <p style="margin:6px 0 0;font-size:11px;color:${SUBTEXT};">
-          <a href="tel:+918000000000" style="color:${SUBTEXT};text-decoration:none;">+91 80 0000 0000</a> &middot;
+          <a href="tel:+916209124788" style="color:${SUBTEXT};text-decoration:none;">+91 62091 24788</a> &middot;
           <a href="mailto:info@supertownhouse.com" style="color:${SUBTEXT};text-decoration:none;">info@supertownhouse.com</a> &middot;
           <a href="https://www.google.com/travel/hotels/s/wwt7siZmQoKJDQ6f7" style="color:${SUBTEXT};text-decoration:none;">📍 Get Directions</a>
         </p>
@@ -187,7 +187,7 @@ export function renderEmailTemplate(
             🗺️ Open in Google Maps
           </a>
         </div>
-        ${para('Check-in: 2:00 PM &nbsp;|&nbsp; Check-out: 12:00 PM &nbsp;|&nbsp; Need help? <a href="tel:+918000000000" style="color:#7C3AED;">Call us</a>')}
+        ${para('Check-in: 2:00 PM &nbsp;|&nbsp; Check-out: 12:00 PM &nbsp;|&nbsp; Need help? <a href="tel:+916209124788" style="color:#7C3AED;">+91 62091 24788</a>')}
       `, `Booking ${v('booking_ref')} confirmed — ${v('check_in')} to ${v('check_out')}`);
 
       return {
