@@ -5,7 +5,30 @@ import Link from 'next/link';
 import { useSupabase } from '@/providers/SupabaseProvider';
 import { getBookingsByGuest } from '@/services/bookingService';
 import { formatINR, formatDate } from '@/services/pricingService';
-import { Calendar, BedDouble, ChevronRight, Clock, AlertCircle, CheckCircle2, XCircle, LogIn, LogOut } from 'lucide-react';
+import { Calendar, BedDouble, ChevronRight, CheckCircle2, LogIn } from 'lucide-react';
+
+// Smart payment label shown below the price
+function paymentLabel(booking: any): { text: string; color: string } {
+  const ps = booking.payment_status ?? 'pending';
+  const pm = booking.payment_method ?? '';
+  const bs = booking.status ?? '';
+
+  if (bs === 'cancelled') {
+    if (ps === 'refunded')           return { text: 'Refunded',       color: 'text-blue-500' };
+    if (ps === 'partially_refunded') return { text: 'Part. Refunded', color: 'text-blue-400' };
+    return                                  { text: 'Cancelled',      color: 'text-red-400' };
+  }
+  if (ps === 'paid')                 return { text: 'Paid ✓',          color: 'text-green-600' };
+  if (ps === 'partially_refunded')   return { text: 'Part. Refunded', color: 'text-blue-500' };
+  if (ps === 'refunded')             return { text: 'Refunded',       color: 'text-blue-500' };
+  if (ps === 'failed')               return { text: 'Payment Failed', color: 'text-red-500' };
+  // pending / authorized
+  if (pm === 'pay_at_hotel' || pm === 'cash')
+    return { text: 'Pay at Hotel',   color: 'text-amber-600' };
+  if (pm === 'online' || pm === 'card' || pm === 'upi')
+    return { text: 'Online — Pending', color: 'text-yellow-600' };
+  return   { text: 'Pay at Hotel',   color: 'text-amber-600' };
+}
 
 const STATUS_CONFIG: Record<string, { label: string; color: string }> = {
   pending:     { label: 'Pending',     color: 'bg-yellow-100 text-yellow-700' },
@@ -133,7 +156,9 @@ export default function MyBookingsPage() {
                   </div>
                   <div className="text-right flex-shrink-0">
                     <p className="font-heading font-bold text-base text-primary">{formatINR(Number(booking.total_amount))}</p>
-                    <p className="text-xs text-on-surface-variant mt-0.5 capitalize">{booking.payment_status}</p>
+                    {(() => { const pl = paymentLabel(booking); return (
+                      <p className={`text-xs mt-0.5 font-medium ${pl.color}`}>{pl.text}</p>
+                    ); })()}
                   </div>
                   <ChevronRight size={16} className="text-outline group-hover:text-primary transition-colors flex-shrink-0" />
                 </Link>
