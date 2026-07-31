@@ -13,6 +13,12 @@ const supabasePublic = createClient(
   process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!
 );
 
+// Responsive sizes:
+// Mobile  (<640px)  → serve 640px wide image
+// Tablet  (<1024px) → serve 1080px wide image  
+// Desktop (≥1024px) → serve 1920px wide image
+const HERO_SIZES = '(max-width: 640px) 640px, (max-width: 1024px) 1080px, 1920px';
+
 interface Slide {
   id: string;
   image_url: string;
@@ -64,7 +70,10 @@ export function HeroSection() {
   const currentSlide = slides[current];
 
   return (
-    <section className="relative min-h-[90vh] flex items-center overflow-hidden" aria-label="Hero — Super Townhouse">
+    <section
+      className="relative min-h-[55vh] md:min-h-[70vh] lg:min-h-[90vh] flex items-center overflow-hidden"
+      aria-label="Hero — Super Townhouse"
+    >
 
       {/* ── Background slides ── */}
       {loaded && slides.length > 0 ? (
@@ -78,11 +87,13 @@ export function HeroSection() {
               src={slide.image_url.startsWith('http') ? slide.image_url : slide.image_url}
               alt={slide.title ?? `Slide ${i + 1}`}
               fill
+              quality={85}
               className="object-cover object-center"
               priority={i === 0}
-              sizes="100vw"
+              sizes={HERO_SIZES}
+              loading={i === 0 ? 'eager' : 'lazy'}
             />
-            {/* Dark overlay */}
+            {/* Dark gradient overlay for text readability */}
             <div className="absolute inset-0 bg-gradient-to-t from-black/70 via-black/30 to-black/10" />
           </div>
         ))

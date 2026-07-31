@@ -60,7 +60,7 @@ const nextConfig: NextConfig = {
 
   // Image optimization
   images: {
-    formats: ['image/avif', 'image/webp'],
+    formats: ['image/avif', 'image/webp'],     // auto-convert to modern formats
     remotePatterns: [
       {
         protocol: 'https',
@@ -72,8 +72,13 @@ const nextConfig: NextConfig = {
         hostname: 'images.unsplash.com',
       },
     ],
+    // Breakpoints matching HERO_SIZES in HeroSection.tsx
     deviceSizes: [640, 750, 828, 1080, 1200, 1920, 2048, 3840],
-    imageSizes: [16, 32, 48, 64, 96, 128, 256, 384],
+    imageSizes:  [16, 32, 48, 64, 96, 128, 256, 384],
+    // Cache optimized images for 31 days on Vercel CDN
+    minimumCacheTTL: 60 * 60 * 24 * 31,
+    // Always optimize — never skip for remote images
+    dangerouslyAllowSVG: false,
   },
 
   // Performance optimizations
