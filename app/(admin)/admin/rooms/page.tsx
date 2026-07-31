@@ -252,12 +252,18 @@ export default function RoomsPage() {
     }
     setTypeSaving(true);
     try {
-      // Store amenities as plain text (comma-separated) matching DB TEXT column
-      const payload = {
-        name:               typeForm.name,
-        slug:               typeForm.slug || slugify(typeForm.name),
-        description:        typeForm.description || null,
-        base_price:         Number(typeForm.base_price),
+      // ── Core columns — guaranteed to exist in every room_types table ──
+      const corePayload = {
+        name:         typeForm.name,
+        slug:         typeForm.slug || slugify(typeForm.name),
+        description:  typeForm.description || null,
+        base_price:   Number(typeForm.base_price),
+        max_occupancy: Number(typeForm.max_adults) + Number(typeForm.max_children),
+        is_active:    typeForm.is_active,
+      };
+
+      // ── Extra columns — only exist after running the ALTER TABLE SQL ──
+      const extraPayload = {
         weekend_price:      typeForm.weekend_price ? Number(typeForm.weekend_price) : null,
         bed_type:           typeForm.bed_type || null,
         size_sqft:          typeForm.size_sqft ? Number(typeForm.size_sqft) : null,
@@ -270,27 +276,53 @@ export default function RoomsPage() {
         breakfast_included: typeForm.breakfast_included,
         is_active:          typeForm.is_active,
       };
+      // Try with all fields first, fall back to core only if columns missing
+      const fullPayload = { ...corePayload, ...extraPayload };
+      let saveError: any = null;
+
       if (editingType) {
-        const { error } = await supabase
-          .from('room_types')
-          .update(payload as any)
-          .eq('id', editingType.id);
-        if (error) throw error;
-        toast.success('Room type updated');
+        const { error } = await supabase.from('room_types').update(fullPayload as any).eq('id', editingType.id);
+        saveError = error;
       } else {
-        const { error } = await supabase.from('room_types').insert(payload as any);
-        if (error) throw error;
-        toast.success('Room type created');
+        const { error } = await supabase.from('room_types').insert(fullPayload as any);
+        saveError = error;
       }
+
+      // If column-missing error → retry with core columns only
+      if (saveError) {
+        const isColumnError =
+          saveError.message?.includes('column') ||
+          saveError.message?.includes('schema cache') ||
+          saveError.code === '42703';
+
+        if (isColumnError) {
+          let fallbackError: any = null;
+          if (editingType) {
+            const { error } = await supabase.from('room_types').update(corePayload as any).eq('id', editingType.id);
+            fallbackError = error;
+          } else {
+            const { error } = await supabase.from('room_types').insert(corePayload as any);
+            fallbackError = error;
+          }
+          if (fallbackError) throw fallbackError;
+          toast.success(`Room type ${editingType ? 'updated' : 'created'}! Run the ALTER TABLE SQL in Supabase to unlock extra fields.`, { duration: 6000 });
+        } else {
+          throw saveError;
+        }
+      } else {
+        toast.success(`Room type ${editingType ? 'updated' : 'created'} successfully!`);
+      }
+
       setShowTypeModal(false);
       loadRoomTypes();
-      loadRooms(); // refresh type list in room modal
+      loadRooms();
     } catch (e: any) {
       toast.error(e?.message || 'Failed to save room type');
     } finally {
       setTypeSaving(false);
     }
   }
+
 
   async function handleTypeDelete(rt: RoomType) {
     if (!confirm(`Delete room type "${rt.name}"? This cannot be undone.`)) return;
