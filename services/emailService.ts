@@ -9,7 +9,7 @@
 
 import { renderEmailTemplate, type EmailTemplateId } from './emailTemplates';
 
-export type EmailProvider = 'resend' | 'sendgrid' | 'ses' | 'console';
+export type EmailProvider = 'resend' | 'sendgrid' | 'ses' | 'brevo' | 'console';
 
 export interface SendEmailPayload {
   to:           string;
@@ -105,15 +105,40 @@ async function sendViaSES(
   _subject: string, _html: string, _text: string
 ): Promise<EmailResult> {
   try {
-    // Note: Install @aws-sdk/client-ses when activating SES
-    // import { SESClient, SendEmailCommand } from '@aws-sdk/client-ses';
-    // const client = new SESClient({ region: process.env.AWS_REGION });
-    // const cmd = new SendEmailCommand({ ... });
-    // const out = await client.send(cmd);
-    // return { success: true, messageId: out.MessageId, provider: 'ses' };
-    throw new Error('AWS SES not yet configured. Set EMAIL_PROVIDER=resend or sendgrid.');
+    throw new Error('AWS SES not yet configured. Set EMAIL_PROVIDER=resend or brevo.');
   } catch (err: any) {
     return { success: false, error: err.message, provider: 'ses' };
+  }
+}
+
+/** Brevo (https://brevo.com) — set BREVO_API_KEY */
+async function sendViaBrevo(
+  to: string, toName: string, from: string, fromName: string,
+  subject: string, html: string, text: string, replyTo?: string
+): Promise<EmailResult> {
+  try {
+    const apiKey = process.env.BREVO_API_KEY;
+    if (!apiKey) throw new Error('BREVO_API_KEY not set');
+
+    const body: any = {
+      sender:      { name: fromName, email: from },
+      to:          [{ email: to, name: toName || to }],
+      subject,
+      htmlContent: html,
+      textContent: text,
+    };
+    if (replyTo) body.replyTo = { email: replyTo };
+
+    const res = await fetch('https://api.brevo.com/v3/smtp/email', {
+      method:  'POST',
+      headers: { 'api-key': apiKey, 'Content-Type': 'application/json' },
+      body:    JSON.stringify(body),
+    });
+    const data = await res.json();
+    if (!res.ok) throw new Error(data.message ?? JSON.stringify(data));
+    return { success: true, messageId: data.messageId, provider: 'brevo' };
+  } catch (err: any) {
+    return { success: false, error: err.message, provider: 'brevo' };
   }
 }
 
@@ -150,6 +175,7 @@ export async function sendEmail(payload: SendEmailPayload): Promise<EmailResult>
       case 'resend':   return sendViaResend(to, toName, from, fromName, subject, template.html, template.text, replyTo);
       case 'sendgrid': return sendViaSendGrid(to, toName, from, fromName, subject, template.html, template.text, replyTo);
       case 'ses':      return sendViaSES(to, toName, from, fromName, subject, template.html, template.text);
+      case 'brevo':    return sendViaBrevo(to, toName, from, fromName, subject, template.html, template.text, replyTo);
       default:         return sendViaConsole(to, subject, template.text);
     }
   } catch (err: any) {
