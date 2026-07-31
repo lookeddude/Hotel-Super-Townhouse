@@ -5,6 +5,7 @@ import { createMetadata } from '@/lib/metadata';
 import { BedDouble, Users, Maximize2, Star, Coffee, CheckCircle2 } from 'lucide-react';
 import { createServerClient } from '@/lib/supabase/server';
 import { RoomBookingWidget } from '@/features/rooms/RoomBookingWidget';
+import { RoomImageSlideshow } from '@/components/rooms/RoomImageSlideshow';
 
 interface RoomDetailPageProps {
   params: Promise<{ id: string }>;
@@ -46,7 +47,7 @@ export default async function RoomDetailPage({ params }: RoomDetailPageProps) {
         id, name, slug, description, short_description,
         base_price, weekend_price, max_occupancy, max_adults, max_children,
         size_sqft, bed_type, view_type, breakfast_included, breakfast_price,
-        display_order
+        display_order, images, image_url
       `)
       .or(`id.eq.${id},slug.eq.${id}`)
       .maybeSingle();
@@ -78,12 +79,28 @@ export default async function RoomDetailPage({ params }: RoomDetailPageProps) {
       .eq('room_type_id', rt.id)
       .order('display_order');
     const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL!;
-    images = (imgs ?? []).map((img: any) => ({
-      ...img,
-      public_url: img.storage_path
+    
+    // Build slideshow from room_images table + room_type images JSONB array + single image_url fallback
+    const roomImagesFromTable = (imgs ?? []).map((img: any) => ({
+      url: img.storage_path
         ? `${supabaseUrl}/storage/v1/object/public/hotel-images/${img.storage_path}`
         : null,
+      alt: img.alt_text || roomType?.name,
+    })).filter((i: any) => i.url);
+
+    // Also add URLs from room_type.images JSONB array
+    const roomTypeImages = (roomType?.images ?? []).filter(Boolean).map((url: string) => ({
+      url,
+      alt: roomType?.name,
     }));
+
+    // Also add single image_url as fallback
+    if (roomType?.image_url && !roomTypeImages.find((i: any) => i.url === roomType.image_url)) {
+      roomTypeImages.unshift({ url: roomType.image_url, alt: roomType?.name });
+    }
+
+    const allImages = [...roomImagesFromTable, ...roomTypeImages];
+    images = allImages;
   } catch {
     return notFound();
   }
@@ -102,41 +119,14 @@ export default async function RoomDetailPage({ params }: RoomDetailPageProps) {
   });
 
   return (
-    <div className="min-h-screen bg-background">
-      {/* Hero */}
-      <div className="relative bg-gradient-to-br from-gray-900 to-gray-700 h-72 md:h-96">
-        {images[0]?.public_url ? (
-          <img src={images[0].public_url} alt={images[0].alt_text || roomType.name} className="w-full h-full object-cover opacity-80" />
-        ) : (
-          <div className="w-full h-full flex items-center justify-center">
-            <BedDouble size={80} className="text-white/20" />
-          </div>
-        )}
-        <div className="absolute inset-0 bg-gradient-to-t from-black/60 to-transparent" />
-        <div className="absolute bottom-0 left-0 right-0 p-6">
-          <div className="container-custom">
-            <Breadcrumb className="mb-2 [&_*]:text-white/70" />
-            <h1 className="font-heading text-white text-3xl md:text-4xl font-bold">{roomType.name}</h1>
-            {roomType.short_description && (
-              <p className="text-white/80 text-sm mt-1 max-w-xl">{roomType.short_description}</p>
-            )}
-          </div>
+    <div className="min-h-screen bg-background relative">
+      <div className="absolute top-4 left-0 right-0 z-40 pointer-events-none">
+        <div className="container-custom pointer-events-auto">
+          <Breadcrumb className="[&_*]:text-white/70 drop-shadow-md" />
         </div>
       </div>
-
-      {/* Image Strip */}
-      {images.length > 1 && (
-        <div className="container-custom py-4">
-          <div className="flex gap-2 overflow-x-auto pb-1">
-            {images.slice(1, 5).map((img: any) => (
-              img.public_url && (
-                <img key={img.id} src={img.public_url} alt={img.alt_text || roomType.name}
-                  className="h-20 w-32 object-cover rounded-lg flex-shrink-0 border border-outline-variant" />
-              )
-            ))}
-          </div>
-        </div>
-      )}
+      
+      <RoomImageSlideshow images={images} roomName={roomType.name} />
 
       <div className="container-custom py-8">
         <div className="flex flex-col lg:flex-row gap-8">

@@ -51,6 +51,7 @@ const defaultRoomTypeForm = {
   max_children: 0,
   view_type: '',
   image_url: '',
+  images: [] as string[],
   amenities: '',
   breakfast_included: false,
   is_active: true,
@@ -228,6 +229,7 @@ export default function RoomsPage() {
       max_children: rt.max_children ?? 0,
       view_type: rt.view_type ?? '',
       image_url: rt.image_url ?? '',
+      images: rt.images ?? (rt.image_url ? [rt.image_url] : []),
       amenities: Array.isArray(rt.amenities) ? rt.amenities.join(', ') : (rt.amenities ?? ''),
       breakfast_included: rt.breakfast_included ?? false,
       is_active: rt.is_active ?? true,
@@ -260,6 +262,7 @@ export default function RoomsPage() {
         base_price:   Number(typeForm.base_price),
         max_occupancy: Number(typeForm.max_adults) + Number(typeForm.max_children),
         is_active:    typeForm.is_active,
+        image_url:    typeForm.images?.[0] || null,
       };
 
       // ── Extra columns — only exist after running the ALTER TABLE SQL ──
@@ -271,7 +274,8 @@ export default function RoomsPage() {
         max_children:       Number(typeForm.max_children),
         max_occupancy:      Number(typeForm.max_adults) + Number(typeForm.max_children),
         view_type:          typeForm.view_type || null,
-        image_url:          typeForm.image_url || null,
+        image_url:          typeForm.images?.[0] || null,
+        images:             typeForm.images?.filter(Boolean) ?? [],
         amenities:          typeForm.amenities || null,
         breakfast_included: typeForm.breakfast_included,
         is_active:          typeForm.is_active,
@@ -909,18 +913,56 @@ export default function RoomsPage() {
                 />
               </div>
 
-              {/* Image URL */}
-              <div>
-                <label className="block text-xs font-medium text-on-surface-variant mb-1">
-                  Room Image URL
-                </label>
-                <input
-                  type="url"
-                  value={typeForm.image_url}
-                  onChange={(e) => handleTypeFormChange('image_url', e.target.value)}
-                  className={INPUT_CLS}
-                  placeholder="https://…"
-                />
+              {/* Multiple Images */}
+              <div className="col-span-1 sm:col-span-2 space-y-2">
+                <label className="text-xs font-medium text-on-surface block">Room Images (add multiple URLs for slideshow)</label>
+                {(typeForm.images ?? []).map((url: string, idx: number) => (
+                  <div key={idx} className="flex gap-2 items-center">
+                    <input
+                      type="url"
+                      value={url}
+                      onChange={(e) => {
+                        const updated = [...(typeForm.images ?? [])];
+                        updated[idx] = e.target.value;
+                        setTypeForm((p: any) => ({ ...p, images: updated }));
+                      }}
+                      className={INPUT_CLS}
+                      placeholder={idx === 0 ? 'Main photo URL (shown as cover)' : `Extra photo ${idx + 1} URL`}
+                    />
+                    {idx === 0 ? (
+                      <span className="text-xs text-on-surface-variant whitespace-nowrap w-12 text-center">Main</span>
+                    ) : (
+                      <button
+                        type="button"
+                        onClick={() => {
+                          const updated = (typeForm.images ?? []).filter((_: string, i: number) => i !== idx);
+                          setTypeForm((p: any) => ({ ...p, images: updated }));
+                        }}
+                        className="w-12 h-9 text-error hover:bg-red-50 rounded flex items-center justify-center flex-shrink-0"
+                      >
+                        ✕
+                      </button>
+                    )}
+                  </div>
+                ))}
+                {(typeForm.images ?? []).length < 8 && (
+                  <button
+                    type="button"
+                    onClick={() => setTypeForm((p: any) => ({ ...p, images: [...(p.images ?? []), ''] }))}
+                    className="text-xs text-primary hover:underline flex items-center gap-1 mt-1"
+                  >
+                    + Add another photo
+                  </button>
+                )}
+                {(typeForm.images ?? []).length === 0 && (
+                  <button
+                    type="button"
+                    onClick={() => setTypeForm((p: any) => ({ ...p, images: [''] }))}
+                    className="text-xs text-primary hover:underline"
+                  >
+                    + Add photo URL
+                  </button>
+                )}
               </div>
 
               {/* Amenities */}
