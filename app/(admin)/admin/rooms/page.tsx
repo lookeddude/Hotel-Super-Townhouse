@@ -1,267 +1,1106 @@
 'use client';
 
 import { useEffect, useState, useCallback } from 'react';
-import { Plus, Search, Edit2, Trash2, RefreshCcw, BedDouble, CheckCircle, AlertCircle, Wrench } from 'lucide-react';
+import { Plus, Search, Edit2, Trash2, RefreshCcw } from 'lucide-react';
 import { useSupabase } from '@/providers/SupabaseProvider';
 import { getRooms, getRoomStats, getRoomTypes, updateRoom, deleteRoom, createRoom } from '@/services/roomService';
 import { toast } from 'sonner';
 
-type RoomStatus = 'available' | 'occupied' | 'reserved' | 'maintenance' | 'out_of_service';
+const INPUT_CLS =
+  'w-full px-3 py-2 border border-outline-variant rounded-lg text-sm focus:outline-none focus:border-primary';
 
-const STATUS_CONFIG: Record<RoomStatus, { label: string; color: string }> = {
-  available: { label: 'Available', color: 'bg-green-100 text-green-700' },
-  occupied: { label: 'Occupied', color: 'bg-blue-100 text-blue-700' },
-  reserved: { label: 'Reserved', color: 'bg-yellow-100 text-yellow-700' },
-  maintenance: { label: 'Maintenance', color: 'bg-orange-100 text-orange-700' },
-  out_of_service: { label: 'Out of Service', color: 'bg-red-100 text-red-700' },
-};
+// ─── Types ────────────────────────────────────────────────────────────────────
 
-const INPUT_CLS = 'w-full px-3 py-2 border border-outline-variant rounded-lg text-sm focus:outline-none focus:border-primary';
+type Room = any;
+type RoomType = any;
+type RoomStats = any;
 
-function Field({ label, children }: { label: string; children: React.ReactNode }) {
-  return (
-    <div className="space-y-1">
-      <label className="text-xs font-medium text-on-surface">{label}</label>
-      {children}
-    </div>
-  );
+// ─── Helpers ──────────────────────────────────────────────────────────────────
+
+function slugify(text: string): string {
+  return text
+    .toLowerCase()
+    .trim()
+    .replace(/[^a-z0-9\s-]/g, '')
+    .replace(/\s+/g, '-')
+    .replace(/-+/g, '-');
 }
 
-export default function AdminRoomsPage() {
-  const { supabase } = useSupabase();
-  const [rooms, setRooms] = useState<any[]>([]);
-  const [roomTypes, setRoomTypes] = useState<any[]>([]);
-  const [stats, setStats] = useState({ total: 0, available: 0, occupied: 0, maintenance: 0 });
-  const [isLoading, setIsLoading] = useState(true);
-  const [search, setSearch] = useState('');
-  const [filterStatus, setFilterStatus] = useState('');
-  const [showModal, setShowModal] = useState(false);
-  const [editingRoom, setEditingRoom] = useState<any>(null);
-  const [totalCount, setTotalCount] = useState(0);
+// ─── Default form states ───────────────────────────────────────────────────────
 
-  const loadData = useCallback(async () => {
-    setIsLoading(true);
+const defaultRoomForm = {
+  room_number: '',
+  room_type_id: '',
+  floor: '',
+  override_price: '',
+  status: 'available',
+  description: '',
+  notes: '',
+  is_featured: false,
+};
+
+const defaultRoomTypeForm = {
+  name: '',
+  slug: '',
+  description: '',
+  base_price: '',
+  weekend_price: '',
+  bed_type: 'Double',
+  size_sqft: '',
+  max_adults: 2,
+  max_children: 0,
+  view_type: '',
+  image_url: '',
+  amenities: '',
+  breakfast_included: false,
+  is_active: true,
+};
+
+// ═══════════════════════════════════════════════════════════════════════════════
+// MAIN PAGE COMPONENT
+// ═══════════════════════════════════════════════════════════════════════════════
+
+export default function RoomsPage() {
+  const { supabase } = useSupabase();
+
+  // ── Tab state ────────────────────────────────────────────────────────────────
+  const [activeTab, setActiveTab] = useState<'rooms' | 'types'>('rooms');
+
+  // ── Individual Rooms state ────────────────────────────────────────────────────
+  const [rooms, setRooms] = useState<Room[]>([]);
+  const [roomStats, setRoomStats] = useState<RoomStats>(null);
+  const [roomTypes, setRoomTypes] = useState<RoomType[]>([]);
+  const [roomsLoading, setRoomsLoading] = useState(true);
+  const [roomSearch, setRoomSearch] = useState('');
+  const [roomStatusFilter, setRoomStatusFilter] = useState('all');
+
+  const [showRoomModal, setShowRoomModal] = useState(false);
+  const [editingRoom, setEditingRoom] = useState<Room | null>(null);
+  const [roomForm, setRoomForm] = useState(defaultRoomForm);
+  const [roomSaving, setRoomSaving] = useState(false);
+
+  // ── Room Types state ───────────────────────────────────────────────────────────
+  const [roomTypesList, setRoomTypesList] = useState<RoomType[]>([]);
+  const [typesLoading, setTypesLoading] = useState(true);
+
+  const [showTypeModal, setShowTypeModal] = useState(false);
+  const [editingType, setEditingType] = useState<RoomType | null>(null);
+  const [typeForm, setTypeForm] = useState(defaultRoomTypeForm);
+  const [typeSaving, setTypeSaving] = useState(false);
+
+  // ─── Fetch helpers ─────────────────────────────────────────────────────────────
+
+  const loadRooms = useCallback(async () => {
+    setRoomsLoading(true);
     try {
-      const [roomsResult, statsResult, typesResult] = await Promise.all([
-        getRooms(supabase, { status: filterStatus || undefined, search: search || undefined }),
+      const [roomsData, statsData, typesData] = await Promise.all([
+        getRooms(supabase),
         getRoomStats(supabase),
         getRoomTypes(supabase),
       ]);
-      setRooms(roomsResult.data ?? []);
-      setTotalCount(roomsResult.count ?? 0);
-      setStats(statsResult);
-      setRoomTypes(typesResult.data ?? []);
-    } catch {
-      toast.error('Failed to load room data');
+      setRooms((roomsData as any)?.data || roomsData || []);
+      setRoomStats(statsData as any);
+      setRoomTypes((typesData as any)?.data || typesData || []);
+    } catch (_e) {
+      toast.error('Failed to load rooms');
     } finally {
-      setIsLoading(false);
+      setRoomsLoading(false);
     }
-  }, [supabase, search, filterStatus]);
+  }, [supabase]);
 
-  useEffect(() => { loadData(); }, [loadData]);
+  const loadRoomTypes = useCallback(async () => {
+    setTypesLoading(true);
+    try {
+      const { data, error } = await supabase
+        .from('room_types')
+        .select('*')
+        .order('name');
+      if (error) throw error;
+      setRoomTypesList(data || []);
+    } catch (e) {
+      toast.error('Failed to load room types');
+    } finally {
+      setTypesLoading(false);
+    }
+  }, [supabase]);
 
-  const handleStatusChange = async (id: string, status: string) => {
-    const { error } = await updateRoom(supabase, id, { status });
-    if (error) { toast.error('Failed to update status'); return; }
-    toast.success('Room status updated');
-    loadData();
-  };
+  useEffect(() => {
+    loadRooms();
+    loadRoomTypes();
+  }, [loadRooms, loadRoomTypes]);
 
-  const handleDelete = async (id: string, roomNumber: string) => {
-    if (!confirm(`Delete room ${roomNumber}? This action is irreversible.`)) return;
-    const { error } = await deleteRoom(supabase, id);
-    if (error) { toast.error('Failed to delete room'); return; }
-    toast.success(`Room ${roomNumber} deleted`);
-    loadData();
-  };
+  // ─── Individual Room handlers ──────────────────────────────────────────────────
+
+  const filteredRooms = rooms.filter((r) => {
+    const matchSearch =
+      !roomSearch ||
+      r.room_number?.toString().includes(roomSearch) ||
+      r.room_types?.name?.toLowerCase().includes(roomSearch.toLowerCase());
+    const matchStatus =
+      roomStatusFilter === 'all' || r.status === roomStatusFilter;
+    return matchSearch && matchStatus;
+  });
+
+  function openAddRoom() {
+    setEditingRoom(null);
+    setRoomForm(defaultRoomForm);
+    setShowRoomModal(true);
+  }
+
+  function openEditRoom(room: Room) {
+    setEditingRoom(room);
+    setRoomForm({
+      room_number: room.room_number ?? '',
+      room_type_id: room.room_type_id ?? '',
+      floor: room.floor ?? '',
+      override_price: room.override_price ?? '',
+      status: room.status ?? 'available',
+      description: room.description ?? '',
+      notes: room.notes ?? '',
+      is_featured: room.is_featured ?? false,
+    });
+    setShowRoomModal(true);
+  }
+
+  async function handleRoomSave() {
+    if (!roomForm.room_number || !roomForm.room_type_id) {
+      toast.error('Room number and type are required');
+      return;
+    }
+    setRoomSaving(true);
+    try {
+      const payload = {
+        room_number: roomForm.room_number,
+        room_type_id: roomForm.room_type_id,
+        floor: roomForm.floor ? Number(roomForm.floor) : null,
+        override_price: roomForm.override_price ? Number(roomForm.override_price) : null,
+        status: roomForm.status,
+        description: roomForm.description || null,
+        notes: roomForm.notes || null,
+        is_featured: roomForm.is_featured,
+      };
+      if (editingRoom) {
+        await updateRoom(supabase, editingRoom.id, payload);
+        toast.success('Room updated');
+      } else {
+        await createRoom(supabase, payload);
+        toast.success('Room created');
+      }
+      setShowRoomModal(false);
+      loadRooms();
+    } catch (e: any) {
+      toast.error(e?.message || 'Failed to save room');
+    } finally {
+      setRoomSaving(false);
+    }
+  }
+
+  async function handleRoomDelete(id: string) {
+    if (!confirm('Delete this room? This action cannot be undone.')) return;
+    try {
+      await deleteRoom(supabase, id);
+      toast.success('Room deleted');
+      loadRooms();
+    } catch (_e: any) {
+      toast.error('Failed to delete room');
+    }
+  }
+
+  // ─── Room Type handlers ────────────────────────────────────────────────────────
+
+  function openAddType() {
+    setEditingType(null);
+    setTypeForm(defaultRoomTypeForm);
+    setShowTypeModal(true);
+  }
+
+  function openEditType(rt: RoomType) {
+    setEditingType(rt);
+    setTypeForm({
+      name: rt.name ?? '',
+      slug: rt.slug ?? '',
+      description: rt.description ?? '',
+      base_price: rt.base_price ?? '',
+      weekend_price: rt.weekend_price ?? '',
+      bed_type: rt.bed_type ?? 'Double',
+      size_sqft: rt.size_sqft ?? '',
+      max_adults: rt.max_adults ?? 2,
+      max_children: rt.max_children ?? 0,
+      view_type: rt.view_type ?? '',
+      image_url: rt.image_url ?? '',
+      amenities: Array.isArray(rt.amenities) ? rt.amenities.join(', ') : (rt.amenities ?? ''),
+      breakfast_included: rt.breakfast_included ?? false,
+      is_active: rt.is_active ?? true,
+    });
+    setShowTypeModal(true);
+  }
+
+  function handleTypeFormChange(field: string, value: any) {
+    setTypeForm((prev) => {
+      const updated = { ...prev, [field]: value };
+      if (field === 'name' && !editingType) {
+        updated.slug = slugify(value);
+      }
+      return updated;
+    });
+  }
+
+  async function handleTypeSave() {
+    if (!typeForm.name || !typeForm.base_price) {
+      toast.error('Name and base price are required');
+      return;
+    }
+    setTypeSaving(true);
+    try {
+      const amenitiesArr = typeForm.amenities
+        ? typeForm.amenities.split(',').map((a: string) => a.trim()).filter(Boolean)
+        : [];
+      const payload = {
+        name: typeForm.name,
+        slug: typeForm.slug || slugify(typeForm.name),
+        description: typeForm.description || null,
+        base_price: Number(typeForm.base_price),
+        weekend_price: typeForm.weekend_price ? Number(typeForm.weekend_price) : null,
+        bed_type: typeForm.bed_type || null,
+        size_sqft: typeForm.size_sqft ? Number(typeForm.size_sqft) : null,
+        max_adults: Number(typeForm.max_adults),
+        max_children: Number(typeForm.max_children),
+        max_occupancy: Number(typeForm.max_adults) + Number(typeForm.max_children),
+        view_type: typeForm.view_type || null,
+        image_url: typeForm.image_url || null,
+        amenities: amenitiesArr,
+        breakfast_included: typeForm.breakfast_included,
+        is_active: typeForm.is_active,
+      };
+      if (editingType) {
+        const { error } = await supabase
+          .from('room_types')
+          .update(payload as any)
+          .eq('id', editingType.id);
+        if (error) throw error;
+        toast.success('Room type updated');
+      } else {
+        const { error } = await supabase.from('room_types').insert(payload as any);
+        if (error) throw error;
+        toast.success('Room type created');
+      }
+      setShowTypeModal(false);
+      loadRoomTypes();
+      loadRooms(); // refresh type list in room modal
+    } catch (e: any) {
+      toast.error(e?.message || 'Failed to save room type');
+    } finally {
+      setTypeSaving(false);
+    }
+  }
+
+  async function handleTypeDelete(rt: RoomType) {
+    if (!confirm(`Delete room type "${rt.name}"? This cannot be undone.`)) return;
+    try {
+      const { error } = await supabase.from('room_types').delete().eq('id', rt.id);
+      if (error) throw error;
+      toast.success('Room type deleted');
+      loadRoomTypes();
+    } catch (e: any) {
+      toast.error(e?.message || 'Failed to delete room type');
+    }
+  }
+
+  async function handleTypeToggleActive(rt: RoomType) {
+    try {
+      const { error } = await supabase
+        .from('room_types')
+        .update({ is_active: !rt.is_active })
+        .eq('id', rt.id);
+      if (error) throw error;
+      toast.success(rt.is_active ? 'Room type deactivated' : 'Room type activated');
+      loadRoomTypes();
+    } catch (e: any) {
+      toast.error(e?.message || 'Failed to toggle status');
+    }
+  }
+
+  // ─── Status badge helper ──────────────────────────────────────────────────────
+
+  function statusBadge(status: string) {
+    const map: Record<string, string> = {
+      available: 'bg-green-100 text-green-700',
+      occupied: 'bg-blue-100 text-blue-700',
+      maintenance: 'bg-yellow-100 text-yellow-700',
+      cleaning: 'bg-purple-100 text-purple-700',
+      blocked: 'bg-red-100 text-red-700',
+    };
+    return (
+      <span
+        className={`px-2 py-0.5 rounded-full text-xs font-medium ${map[status] ?? 'bg-gray-100 text-gray-600'}`}
+      >
+        {status}
+      </span>
+    );
+  }
+
+  // ─────────────────────────────────────────────────────────────────────────────
+  // RENDER
+  // ─────────────────────────────────────────────────────────────────────────────
 
   return (
-    <div className="space-y-6">
+    <div className="p-6 space-y-6">
+      {/* ── Page Header ── */}
       <div className="flex items-center justify-between">
         <div>
-          <h1 className="font-heading text-headline-md text-on-surface">Room Management</h1>
-          <p className="text-body-sm text-on-surface-variant mt-1">{totalCount} rooms total</p>
+          <h1 className="text-2xl font-bold text-on-surface">Rooms Management</h1>
+          <p className="text-sm text-on-surface-variant mt-0.5">
+            Manage individual rooms and room types
+          </p>
         </div>
-        <div className="flex gap-3">
-          <button onClick={loadData} disabled={isLoading} className="p-2 border border-outline-variant rounded-lg hover:bg-surface transition-colors">
-            <RefreshCcw size={16} className={isLoading ? 'animate-spin' : ''} />
-          </button>
-          <button onClick={() => { setEditingRoom(null); setShowModal(true); }} className="flex items-center gap-2 px-4 py-2 bg-primary text-white text-sm font-semibold rounded-lg hover:bg-primary-dark transition-colors">
-            <Plus size={16} />Add Room
-          </button>
-        </div>
+        <button
+          onClick={() => { loadRooms(); loadRoomTypes(); }}
+          className="flex items-center gap-2 px-3 py-2 text-sm border border-outline-variant rounded-lg hover:bg-surface text-on-surface-variant"
+        >
+          <RefreshCcw size={14} />
+          Refresh
+        </button>
       </div>
 
-      {/* Stats */}
-      <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
-        {[
-          { label: 'Total Rooms', value: stats.total, color: 'text-on-surface' },
-          { label: 'Available', value: stats.available, color: 'text-green-600' },
-          { label: 'Occupied', value: stats.occupied, color: 'text-blue-600' },
-          { label: 'Maintenance', value: stats.maintenance, color: 'text-orange-600' },
-        ].map((s) => (
-          <div key={s.label} className="bg-white rounded-lg border border-outline-variant p-4">
-            <p className={`font-heading font-bold text-2xl ${s.color}`}>{isLoading ? '—' : s.value}</p>
-            <p className="text-caption text-on-surface-variant mt-1">{s.label}</p>
+      {/* ── Stats Row (only on rooms tab) ── */}
+      {activeTab === 'rooms' && roomStats && (
+        <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+          {[
+            { label: 'Total Rooms', value: roomStats.total ?? 0 },
+            { label: 'Available', value: roomStats.available ?? 0 },
+            { label: 'Occupied', value: roomStats.occupied ?? 0 },
+            { label: 'Maintenance', value: roomStats.maintenance ?? 0 },
+          ].map((s) => (
+            <div key={s.label} className="bg-white border border-outline-variant rounded-lg p-4">
+              <p className="text-xs text-on-surface-variant">{s.label}</p>
+              <p className="text-2xl font-bold text-on-surface mt-1">{s.value}</p>
+            </div>
+          ))}
+        </div>
+      )}
+
+      {/* ── Tabs ── */}
+      <div className="bg-white border border-outline-variant rounded-lg overflow-hidden">
+        <div className="flex border-b border-outline-variant">
+          {(['rooms', 'types'] as const).map((tab) => (
+            <button
+              key={tab}
+              onClick={() => setActiveTab(tab)}
+              className={`px-6 py-3 text-sm font-medium transition-colors ${
+                activeTab === tab
+                  ? 'border-b-2 border-primary text-primary bg-surface'
+                  : 'text-on-surface-variant hover:text-on-surface hover:bg-surface'
+              }`}
+            >
+              {tab === 'rooms' ? 'Individual Rooms' : 'Room Types'}
+            </button>
+          ))}
+        </div>
+
+        {/* ════════════════════════════════════════
+            TAB 1 — Individual Rooms
+            ════════════════════════════════════════ */}
+        {activeTab === 'rooms' && (
+          <div className="p-5 space-y-4">
+            {/* Toolbar */}
+            <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3">
+              <div className="flex items-center gap-3 flex-1">
+                <div className="relative flex-1 max-w-xs">
+                  <Search size={14} className="absolute left-3 top-1/2 -translate-y-1/2 text-on-surface-variant" />
+                  <input
+                    type="text"
+                    placeholder="Search rooms…"
+                    value={roomSearch}
+                    onChange={(e) => setRoomSearch(e.target.value)}
+                    className={`${INPUT_CLS} pl-8`}
+                  />
+                </div>
+                <select
+                  value={roomStatusFilter}
+                  onChange={(e) => setRoomStatusFilter(e.target.value)}
+                  className={INPUT_CLS + ' w-auto'}
+                >
+                  <option value="all">All Statuses</option>
+                  <option value="available">Available</option>
+                  <option value="occupied">Occupied</option>
+                  <option value="maintenance">Maintenance</option>
+                  <option value="cleaning">Cleaning</option>
+                  <option value="blocked">Blocked</option>
+                </select>
+              </div>
+              <button
+                onClick={openAddRoom}
+                className="flex items-center gap-2 px-4 py-2 bg-primary text-white rounded-lg text-sm font-medium hover:bg-primary-dark transition-colors"
+              >
+                <Plus size={16} />
+                Add Room
+              </button>
+            </div>
+
+            {/* Table */}
+            {roomsLoading ? (
+              <div className="text-center py-12 text-on-surface-variant text-sm">Loading rooms…</div>
+            ) : filteredRooms.length === 0 ? (
+              <div className="text-center py-12 text-on-surface-variant text-sm">No rooms found.</div>
+            ) : (
+              <div className="overflow-x-auto rounded-lg border border-outline-variant">
+                <table className="w-full text-sm">
+                  <thead>
+                    <tr className="bg-surface border-b border-outline-variant">
+                      {['Room #', 'Type', 'Floor', 'Capacity', 'Base Price', 'Status', 'Actions'].map(
+                        (h) => (
+                          <th key={h} className="px-4 py-3 text-left text-xs font-semibold text-on-surface-variant">
+                            {h}
+                          </th>
+                        )
+                      )}
+                    </tr>
+                  </thead>
+                  <tbody className="divide-y divide-outline-variant">
+                    {filteredRooms.map((room) => (
+                      <tr key={room.id} className="hover:bg-surface transition-colors">
+                        <td className="px-4 py-3 font-medium text-on-surface">{room.room_number}</td>
+                        <td className="px-4 py-3 text-on-surface-variant">
+                          {room.room_types?.name ?? '—'}
+                        </td>
+                        <td className="px-4 py-3 text-on-surface-variant">
+                          {room.floor != null ? `Floor ${room.floor}` : '—'}
+                        </td>
+                        <td className="px-4 py-3 text-on-surface-variant">
+                          {room.room_types?.max_occupancy != null
+                            ? `${room.room_types.max_occupancy} guests`
+                            : '—'}
+                        </td>
+                        <td className="px-4 py-3 text-on-surface-variant">
+                          {room.override_price != null
+                            ? `₹${Number(room.override_price).toLocaleString()}`
+                            : room.room_types?.base_price != null
+                            ? `₹${Number(room.room_types.base_price).toLocaleString()}`
+                            : '—'}
+                        </td>
+                        <td className="px-4 py-3">{statusBadge(room.status)}</td>
+                        <td className="px-4 py-3">
+                          <div className="flex items-center gap-2">
+                            <button
+                              onClick={() => openEditRoom(room)}
+                              className="p-1.5 rounded hover:bg-blue-50 text-blue-600 transition-colors"
+                              title="Edit"
+                            >
+                              <Edit2 size={14} />
+                            </button>
+                            <button
+                              onClick={() => handleRoomDelete(room.id)}
+                              className="p-1.5 rounded hover:bg-red-50 text-red-500 transition-colors"
+                              title="Delete"
+                            >
+                              <Trash2 size={14} />
+                            </button>
+                          </div>
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+            )}
           </div>
-        ))}
-      </div>
+        )}
 
-      {/* Filters */}
-      <div className="flex flex-col sm:flex-row gap-3">
-        <div className="relative flex-1">
-          <Search size={16} className="absolute left-3 top-1/2 -translate-y-1/2 text-on-surface-variant" />
-          <input type="search" placeholder="Search room number..." value={search} onChange={(e) => setSearch(e.target.value)} className="w-full pl-9 pr-4 py-2.5 border border-outline-variant rounded-lg text-sm focus:outline-none focus:border-primary" />
-        </div>
-        <select value={filterStatus} onChange={(e) => setFilterStatus(e.target.value)} className="px-4 py-2.5 border border-outline-variant rounded-lg text-sm focus:outline-none focus:border-primary bg-white min-w-[160px]">
-          <option value="">All Statuses</option>
-          {Object.entries(STATUS_CONFIG).map(([k, v]) => <option key={k} value={k}>{v.label}</option>)}
-        </select>
-      </div>
+        {/* ════════════════════════════════════════
+            TAB 2 — Room Types
+            ════════════════════════════════════════ */}
+        {activeTab === 'types' && (
+          <div className="p-5 space-y-4">
+            {/* Toolbar */}
+            <div className="flex items-center justify-between">
+              <p className="text-sm text-on-surface-variant">
+                {roomTypesList.length} room type{roomTypesList.length !== 1 ? 's' : ''}
+              </p>
+              <button
+                onClick={openAddType}
+                className="flex items-center gap-2 px-4 py-2 bg-primary text-white rounded-lg text-sm font-medium hover:bg-primary-dark transition-colors"
+              >
+                <Plus size={16} />
+                Add Room Type
+              </button>
+            </div>
 
-      {/* Table */}
-      <div className="bg-white rounded-lg border border-outline-variant overflow-hidden">
-        <div className="overflow-x-auto">
-          <table className="w-full text-sm min-w-[700px]" role="table">
-            <thead className="bg-surface border-b border-outline-variant">
-              <tr>
-                {['Room #', 'Type', 'Floor', 'Capacity', 'Base Price', 'Status', 'Actions'].map((col) => (
-                  <th key={col} className="px-4 py-3 text-left text-xs font-semibold text-on-surface-variant" scope="col">{col}</th>
+            {/* Grid */}
+            {typesLoading ? (
+              <div className="text-center py-12 text-on-surface-variant text-sm">
+                Loading room types…
+              </div>
+            ) : roomTypesList.length === 0 ? (
+              <div className="text-center py-12 text-on-surface-variant text-sm">
+                No room types yet. Click 'Add Room Type' to create one.
+              </div>
+            ) : (
+              <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-4">
+                {roomTypesList.map((rt) => (
+                  <RoomTypeCard
+                    key={rt.id}
+                    rt={rt}
+                    onEdit={() => openEditType(rt)}
+                    onDelete={() => handleTypeDelete(rt)}
+                    onToggle={() => handleTypeToggleActive(rt)}
+                  />
                 ))}
-              </tr>
-            </thead>
-            <tbody className="divide-y divide-outline-variant">
-              {isLoading ? (
-                Array.from({ length: 5 }).map((_, i) => (
-                  <tr key={i}>{Array.from({ length: 7 }).map((_, j) => <td key={j} className="px-4 py-3"><div className="h-4 bg-surface rounded animate-pulse" /></td>)}</tr>
-                ))
-              ) : rooms.length === 0 ? (
-                <tr><td colSpan={7} className="py-16 text-center text-on-surface-variant text-sm">
-                  {search || filterStatus ? 'No rooms match your filters' : 'No rooms found. Add your first room.'}
-                </td></tr>
-              ) : rooms.map((room) => {
-                const status = (room.status ?? 'available') as RoomStatus;
-                const cfg = STATUS_CONFIG[status] ?? STATUS_CONFIG.available;
-                const price = room.override_price || room.room_types?.base_price || 0;
-                return (
-                  <tr key={room.id} className="hover:bg-surface/50 transition-colors">
-                    <td className="px-4 py-3 font-semibold text-on-surface">{room.room_number}</td>
-                    <td className="px-4 py-3 text-on-surface-variant">{room.room_types?.name ?? '—'}</td>
-                    <td className="px-4 py-3 text-on-surface-variant">Floor {room.floor ?? 1}</td>
-                    <td className="px-4 py-3 text-on-surface-variant">{room.room_types?.max_occupancy ?? '—'} guests</td>
-                    <td className="px-4 py-3 font-medium text-on-surface">₹{Number(price).toLocaleString('en-IN')}</td>
-                    <td className="px-4 py-3">
-                      <select
-                        value={status}
-                        onChange={(e) => handleStatusChange(room.id, e.target.value)}
-                        className={`text-xs font-medium px-2 py-1 rounded-full border-0 cursor-pointer ${cfg.color}`}
-                      >
-                        {Object.entries(STATUS_CONFIG).map(([k, v]) => <option key={k} value={k}>{v.label}</option>)}
-                      </select>
-                    </td>
-                    <td className="px-4 py-3">
-                      <div className="flex items-center gap-2">
-                        <button onClick={() => { setEditingRoom(room); setShowModal(true); }} className="p-1.5 rounded hover:bg-surface text-on-surface-variant hover:text-primary transition-colors" aria-label={`Edit room ${room.room_number}`}><Edit2 size={14} /></button>
-                        <button onClick={() => handleDelete(room.id, room.room_number)} className="p-1.5 rounded hover:bg-red-50 text-on-surface-variant hover:text-error transition-colors" aria-label={`Delete room ${room.room_number}`}><Trash2 size={14} /></button>
-                      </div>
-                    </td>
-                  </tr>
-                );
-              })}
-            </tbody>
-          </table>
-        </div>
+              </div>
+            )}
+          </div>
+        )}
       </div>
 
-      {showModal && (
-        <RoomModal
-          room={editingRoom}
-          roomTypes={roomTypes}
-          supabase={supabase}
-          onClose={() => setShowModal(false)}
-          onSaved={() => { setShowModal(false); loadData(); }}
-        />
+      {/* ════════════════════════════════════════
+          MODAL — Add / Edit Room
+          ════════════════════════════════════════ */}
+      {showRoomModal && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 backdrop-blur-sm">
+          <div className="bg-white rounded-xl shadow-xl w-full max-w-lg mx-4 max-h-[90vh] overflow-y-auto">
+            <div className="flex items-center justify-between p-5 border-b border-outline-variant">
+              <h2 className="text-base font-semibold text-on-surface">
+                {editingRoom ? 'Edit Room' : 'Add New Room'}
+              </h2>
+              <button
+                onClick={() => setShowRoomModal(false)}
+                className="text-on-surface-variant hover:text-on-surface text-xl leading-none"
+              >
+                ×
+              </button>
+            </div>
+            <div className="p-5 space-y-4">
+              {/* Room Number */}
+              <div>
+                <label className="block text-xs font-medium text-on-surface-variant mb-1">
+                  Room Number <span className="text-red-500">*</span>
+                </label>
+                <input
+                  type="text"
+                  value={roomForm.room_number}
+                  onChange={(e) => setRoomForm((p) => ({ ...p, room_number: e.target.value }))}
+                  className={INPUT_CLS}
+                  placeholder="e.g. 101"
+                />
+              </div>
+
+              {/* Room Type */}
+              <div>
+                <label className="block text-xs font-medium text-on-surface-variant mb-1">
+                  Room Type <span className="text-red-500">*</span>
+                </label>
+                <select
+                  value={roomForm.room_type_id}
+                  onChange={(e) => setRoomForm((p) => ({ ...p, room_type_id: e.target.value }))}
+                  className={INPUT_CLS}
+                >
+                  <option value="">Select a room type…</option>
+                  {roomTypes.map((rt: any) => (
+                    <option key={rt.id} value={rt.id}>
+                      {rt.name}
+                    </option>
+                  ))}
+                </select>
+              </div>
+
+              {/* Floor & Override Price */}
+              <div className="grid grid-cols-2 gap-3">
+                <div>
+                  <label className="block text-xs font-medium text-on-surface-variant mb-1">Floor</label>
+                  <input
+                    type="number"
+                    value={roomForm.floor}
+                    onChange={(e) => setRoomForm((p) => ({ ...p, floor: e.target.value }))}
+                    className={INPUT_CLS}
+                    placeholder="e.g. 2"
+                  />
+                </div>
+                <div>
+                  <label className="block text-xs font-medium text-on-surface-variant mb-1">
+                    Override Price ₹
+                  </label>
+                  <input
+                    type="number"
+                    value={roomForm.override_price}
+                    onChange={(e) => setRoomForm((p) => ({ ...p, override_price: e.target.value }))}
+                    className={INPUT_CLS}
+                    placeholder="Leave blank for type price"
+                  />
+                </div>
+              </div>
+
+              {/* Status */}
+              <div>
+                <label className="block text-xs font-medium text-on-surface-variant mb-1">Status</label>
+                <select
+                  value={roomForm.status}
+                  onChange={(e) => setRoomForm((p) => ({ ...p, status: e.target.value }))}
+                  className={INPUT_CLS}
+                >
+                  <option value="available">Available</option>
+                  <option value="occupied">Occupied</option>
+                  <option value="maintenance">Maintenance</option>
+                  <option value="cleaning">Cleaning</option>
+                  <option value="blocked">Blocked</option>
+                </select>
+              </div>
+
+              {/* Description */}
+              <div>
+                <label className="block text-xs font-medium text-on-surface-variant mb-1">Description</label>
+                <textarea
+                  value={roomForm.description}
+                  onChange={(e) => setRoomForm((p) => ({ ...p, description: e.target.value }))}
+                  className={INPUT_CLS}
+                  rows={2}
+                  placeholder="Optional room description"
+                />
+              </div>
+
+              {/* Notes */}
+              <div>
+                <label className="block text-xs font-medium text-on-surface-variant mb-1">Notes</label>
+                <textarea
+                  value={roomForm.notes}
+                  onChange={(e) => setRoomForm((p) => ({ ...p, notes: e.target.value }))}
+                  className={INPUT_CLS}
+                  rows={2}
+                  placeholder="Internal notes"
+                />
+              </div>
+
+              {/* Is Featured */}
+              <div className="flex items-center gap-2">
+                <input
+                  type="checkbox"
+                  id="is_featured"
+                  checked={roomForm.is_featured}
+                  onChange={(e) => setRoomForm((p) => ({ ...p, is_featured: e.target.checked }))}
+                  className="w-4 h-4 accent-primary"
+                />
+                <label htmlFor="is_featured" className="text-sm text-on-surface cursor-pointer">
+                  Featured room
+                </label>
+              </div>
+            </div>
+
+            <div className="flex items-center justify-end gap-3 p-5 border-t border-outline-variant">
+              <button
+                onClick={() => setShowRoomModal(false)}
+                className="px-4 py-2 text-sm border border-outline-variant rounded-lg text-on-surface-variant hover:bg-surface"
+              >
+                Cancel
+              </button>
+              <button
+                onClick={handleRoomSave}
+                disabled={roomSaving}
+                className="px-4 py-2 text-sm bg-primary text-white rounded-lg font-medium hover:bg-primary-dark disabled:opacity-50"
+              >
+                {roomSaving ? 'Saving…' : editingRoom ? 'Update Room' : 'Create Room'}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* ════════════════════════════════════════
+          MODAL — Add / Edit Room Type
+          ════════════════════════════════════════ */}
+      {showTypeModal && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 backdrop-blur-sm">
+          <div className="bg-white rounded-xl shadow-xl w-full max-w-2xl mx-4 max-h-[90vh] overflow-y-auto">
+            <div className="flex items-center justify-between p-5 border-b border-outline-variant">
+              <h2 className="text-base font-semibold text-on-surface">
+                {editingType ? 'Edit Room Type' : 'Add Room Type'}
+              </h2>
+              <button
+                onClick={() => setShowTypeModal(false)}
+                className="text-on-surface-variant hover:text-on-surface text-xl leading-none"
+              >
+                ×
+              </button>
+            </div>
+
+            <div className="p-5 space-y-4">
+              {/* Name & Slug */}
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                <div>
+                  <label className="block text-xs font-medium text-on-surface-variant mb-1">
+                    Room Type Name <span className="text-red-500">*</span>
+                  </label>
+                  <input
+                    type="text"
+                    value={typeForm.name}
+                    onChange={(e) => handleTypeFormChange('name', e.target.value)}
+                    className={INPUT_CLS}
+                    placeholder="e.g. Deluxe Suite"
+                  />
+                </div>
+                <div>
+                  <label className="block text-xs font-medium text-on-surface-variant mb-1">
+                    URL Slug
+                  </label>
+                  <input
+                    type="text"
+                    value={typeForm.slug}
+                    onChange={(e) => handleTypeFormChange('slug', e.target.value)}
+                    className={INPUT_CLS}
+                    placeholder="auto-generated"
+                  />
+                </div>
+              </div>
+
+              {/* Description */}
+              <div>
+                <label className="block text-xs font-medium text-on-surface-variant mb-1">
+                  Description
+                </label>
+                <textarea
+                  value={typeForm.description}
+                  onChange={(e) => handleTypeFormChange('description', e.target.value)}
+                  className={INPUT_CLS}
+                  rows={3}
+                  placeholder="Describe this room type…"
+                />
+              </div>
+
+              {/* Base Price & Weekend Price */}
+              <div className="grid grid-cols-2 gap-3">
+                <div>
+                  <label className="block text-xs font-medium text-on-surface-variant mb-1">
+                    Base Price/Night ₹ <span className="text-red-500">*</span>
+                  </label>
+                  <input
+                    type="number"
+                    value={typeForm.base_price}
+                    onChange={(e) => handleTypeFormChange('base_price', e.target.value)}
+                    className={INPUT_CLS}
+                    placeholder="e.g. 3500"
+                    min={0}
+                  />
+                </div>
+                <div>
+                  <label className="block text-xs font-medium text-on-surface-variant mb-1">
+                    Weekend Price/Night ₹
+                  </label>
+                  <input
+                    type="number"
+                    value={typeForm.weekend_price}
+                    onChange={(e) => handleTypeFormChange('weekend_price', e.target.value)}
+                    className={INPUT_CLS}
+                    placeholder="Optional"
+                    min={0}
+                  />
+                </div>
+              </div>
+
+              {/* Bed Type & Size */}
+              <div className="grid grid-cols-2 gap-3">
+                <div>
+                  <label className="block text-xs font-medium text-on-surface-variant mb-1">
+                    Bed Type
+                  </label>
+                  <select
+                    value={typeForm.bed_type}
+                    onChange={(e) => handleTypeFormChange('bed_type', e.target.value)}
+                    className={INPUT_CLS}
+                  >
+                    {['Single', 'Double', 'Queen', 'King', 'Twin', 'Bunk', 'Sofa Bed'].map((b) => (
+                      <option key={b} value={b}>
+                        {b}
+                      </option>
+                    ))}
+                  </select>
+                </div>
+                <div>
+                  <label className="block text-xs font-medium text-on-surface-variant mb-1">
+                    Room Size sq ft
+                  </label>
+                  <input
+                    type="number"
+                    value={typeForm.size_sqft}
+                    onChange={(e) => handleTypeFormChange('size_sqft', e.target.value)}
+                    className={INPUT_CLS}
+                    placeholder="e.g. 350"
+                    min={0}
+                  />
+                </div>
+              </div>
+
+              {/* Adults, Children, Occupancy */}
+              <div className="grid grid-cols-3 gap-3">
+                <div>
+                  <label className="block text-xs font-medium text-on-surface-variant mb-1">
+                    Max Adults
+                  </label>
+                  <input
+                    type="number"
+                    value={typeForm.max_adults}
+                    onChange={(e) => handleTypeFormChange('max_adults', Number(e.target.value))}
+                    className={INPUT_CLS}
+                    min={1}
+                  />
+                </div>
+                <div>
+                  <label className="block text-xs font-medium text-on-surface-variant mb-1">
+                    Max Children
+                  </label>
+                  <input
+                    type="number"
+                    value={typeForm.max_children}
+                    onChange={(e) => handleTypeFormChange('max_children', Number(e.target.value))}
+                    className={INPUT_CLS}
+                    min={0}
+                  />
+                </div>
+                <div>
+                  <label className="block text-xs font-medium text-on-surface-variant mb-1">
+                    Max Occupancy
+                  </label>
+                  <input
+                    type="number"
+                    value={Number(typeForm.max_adults) + Number(typeForm.max_children)}
+                    readOnly
+                    className={INPUT_CLS + ' bg-surface cursor-not-allowed'}
+                  />
+                </div>
+              </div>
+
+              {/* View Type */}
+              <div>
+                <label className="block text-xs font-medium text-on-surface-variant mb-1">
+                  View Type
+                </label>
+                <input
+                  type="text"
+                  value={typeForm.view_type}
+                  onChange={(e) => handleTypeFormChange('view_type', e.target.value)}
+                  className={INPUT_CLS}
+                  placeholder="e.g. Pool View, Mountain View"
+                />
+              </div>
+
+              {/* Image URL */}
+              <div>
+                <label className="block text-xs font-medium text-on-surface-variant mb-1">
+                  Room Image URL
+                </label>
+                <input
+                  type="url"
+                  value={typeForm.image_url}
+                  onChange={(e) => handleTypeFormChange('image_url', e.target.value)}
+                  className={INPUT_CLS}
+                  placeholder="https://…"
+                />
+              </div>
+
+              {/* Amenities */}
+              <div>
+                <label className="block text-xs font-medium text-on-surface-variant mb-1">
+                  Amenities{' '}
+                  <span className="text-on-surface-variant font-normal">(comma separated)</span>
+                </label>
+                <input
+                  type="text"
+                  value={typeForm.amenities}
+                  onChange={(e) => handleTypeFormChange('amenities', e.target.value)}
+                  className={INPUT_CLS}
+                  placeholder="WiFi, AC, TV, Balcony"
+                />
+              </div>
+
+              {/* Checkboxes */}
+              <div className="flex items-center gap-6">
+                <div className="flex items-center gap-2">
+                  <input
+                    type="checkbox"
+                    id="breakfast_included"
+                    checked={typeForm.breakfast_included}
+                    onChange={(e) => handleTypeFormChange('breakfast_included', e.target.checked)}
+                    className="w-4 h-4 accent-primary"
+                  />
+                  <label htmlFor="breakfast_included" className="text-sm text-on-surface cursor-pointer">
+                    Breakfast Included
+                  </label>
+                </div>
+                <div className="flex items-center gap-2">
+                  <input
+                    type="checkbox"
+                    id="type_is_active"
+                    checked={typeForm.is_active}
+                    onChange={(e) => handleTypeFormChange('is_active', e.target.checked)}
+                    className="w-4 h-4 accent-primary"
+                  />
+                  <label htmlFor="type_is_active" className="text-sm text-on-surface cursor-pointer">
+                    Active / visible on website
+                  </label>
+                </div>
+              </div>
+            </div>
+
+            <div className="flex items-center justify-end gap-3 p-5 border-t border-outline-variant">
+              <button
+                onClick={() => setShowTypeModal(false)}
+                className="px-4 py-2 text-sm border border-outline-variant rounded-lg text-on-surface-variant hover:bg-surface"
+              >
+                Cancel
+              </button>
+              <button
+                onClick={handleTypeSave}
+                disabled={typeSaving}
+                className="px-4 py-2 text-sm bg-primary text-white rounded-lg font-medium hover:bg-primary-dark disabled:opacity-50"
+              >
+                {typeSaving ? 'Saving…' : editingType ? 'Update Room Type' : 'Create Room Type'}
+              </button>
+            </div>
+          </div>
+        </div>
       )}
     </div>
   );
 }
 
-function RoomModal({ room, roomTypes, supabase, onClose, onSaved }: any) {
-  const isEdit = !!room;
-  const [form, setForm] = useState({
-    room_number: room?.room_number ?? '',
-    room_type_id: room?.room_type_id ?? (roomTypes[0]?.id ?? ''),
-    floor: room?.floor ?? 1,
-    override_price: room?.override_price ?? '',
-    status: room?.status ?? 'available',
-    description: room?.description ?? '',
-    notes: room?.notes ?? '',
-    is_featured: room?.is_featured ?? false,
-  });
-  const [isSaving, setIsSaving] = useState(false);
+// ═══════════════════════════════════════════════════════════════════════════════
+// ROOM TYPE CARD SUB-COMPONENT
+// ═══════════════════════════════════════════════════════════════════════════════
 
-  const handleSubmit = async (e: React.FormEvent) => {
-    e.preventDefault();
-    setIsSaving(true);
-    const payload = {
-      ...form,
-      floor: Number(form.floor),
-      override_price: form.override_price ? Number(form.override_price) : null,
-    };
-    const { error } = isEdit
-      ? await updateRoom(supabase, room.id, payload)
-      : await createRoom(supabase, payload);
-    if (error) { toast.error(error.message); setIsSaving(false); return; }
-    toast.success(isEdit ? 'Room updated' : 'Room created');
-    onSaved();
-  };
+interface RoomTypeCardProps {
+  rt: RoomType;
+  onEdit: () => void;
+  onDelete: () => void;
+  onToggle: () => void;
+}
+
+function RoomTypeCard({ rt, onEdit, onDelete, onToggle }: RoomTypeCardProps) {
+  const amenitiesArr: string[] = Array.isArray(rt.amenities)
+    ? rt.amenities
+    : rt.amenities
+    ? rt.amenities.split(',').map((a: string) => a.trim())
+    : [];
 
   return (
-    <div className="fixed inset-0 bg-black/40 z-50 flex items-center justify-center p-4" onClick={(e) => e.target === e.currentTarget && onClose()}>
-      <div className="bg-white rounded-xl shadow-xl w-full max-w-lg max-h-[90vh] overflow-y-auto">
-        <div className="p-6 border-b border-outline-variant flex items-center justify-between">
-          <h2 className="font-heading font-semibold text-lg">{isEdit ? 'Edit Room' : 'Add New Room'}</h2>
-          <button onClick={onClose} className="text-on-surface-variant hover:text-on-surface text-2xl leading-none">×</button>
+    <div className="bg-white border border-outline-variant rounded-lg p-4 space-y-3 hover:shadow-sm transition-shadow">
+      {/* Header */}
+      <div className="flex items-start justify-between gap-2">
+        <div className="flex-1 min-w-0">
+          <h3 className="font-semibold text-on-surface text-sm truncate">{rt.name}</h3>
+          {rt.slug && (
+            <p className="text-xs text-on-surface-variant mt-0.5 truncate">/{rt.slug}</p>
+          )}
         </div>
-        <form onSubmit={handleSubmit} className="p-6 space-y-4">
-          <div className="grid grid-cols-2 gap-4">
-            <Field label="Room Number *">
-              <input required value={form.room_number} onChange={(e) => setForm(p => ({ ...p, room_number: e.target.value }))} className={INPUT_CLS} placeholder="e.g. 101" />
-            </Field>
-            <Field label="Room Type *">
-              <select required value={form.room_type_id} onChange={(e) => setForm(p => ({ ...p, room_type_id: e.target.value }))} className={INPUT_CLS}>
-                {roomTypes.map((t: any) => <option key={t.id} value={t.id}>{t.name}</option>)}
-              </select>
-            </Field>
-            <Field label="Floor">
-              <input type="number" min={1} value={form.floor} onChange={(e) => setForm(p => ({ ...p, floor: e.target.value }))} className={INPUT_CLS} />
-            </Field>
-            <Field label="Override Price/Night (₹)">
-              <input type="number" min={0} value={form.override_price} onChange={(e) => setForm(p => ({ ...p, override_price: e.target.value }))} className={INPUT_CLS} placeholder="Leave blank for room type price" />
-            </Field>
-            <Field label="Status">
-              <select value={form.status} onChange={(e) => setForm(p => ({ ...p, status: e.target.value }))} className={INPUT_CLS}>
-                {Object.entries(STATUS_CONFIG).map(([k, v]) => <option key={k} value={k}>{v.label}</option>)}
-              </select>
-            </Field>
+        <span
+          className={`shrink-0 px-2 py-0.5 rounded-full text-xs font-medium ${
+            rt.is_active ? 'bg-green-100 text-green-700' : 'bg-gray-100 text-gray-500'
+          }`}
+        >
+          {rt.is_active ? 'Active' : 'Inactive'}
+        </span>
+      </div>
+
+      {/* Description */}
+      {rt.description && (
+        <p className="text-xs text-on-surface-variant line-clamp-2">{rt.description}</p>
+      )}
+
+      {/* Details grid */}
+      <div className="grid grid-cols-2 gap-x-4 gap-y-1.5 text-xs">
+        <div>
+          <span className="text-on-surface-variant">Base Price</span>
+          <span className="ml-1 font-medium text-on-surface">
+            ₹{Number(rt.base_price).toLocaleString()}
+          </span>
+        </div>
+        {rt.weekend_price && (
+          <div>
+            <span className="text-on-surface-variant">Weekend</span>
+            <span className="ml-1 font-medium text-on-surface">
+              ₹{Number(rt.weekend_price).toLocaleString()}
+            </span>
           </div>
-          <Field label="Description">
-            <textarea value={form.description} onChange={(e) => setForm(p => ({ ...p, description: e.target.value }))} className={INPUT_CLS + ' resize-none'} rows={3} />
-          </Field>
-          <Field label="Notes (internal only)">
-            <input value={form.notes} onChange={(e) => setForm(p => ({ ...p, notes: e.target.value }))} className={INPUT_CLS} />
-          </Field>
-          <label className="flex items-center gap-2 cursor-pointer">
-            <input type="checkbox" checked={form.is_featured} onChange={(e) => setForm(p => ({ ...p, is_featured: e.target.checked }))} className="accent-primary w-4 h-4" />
-            <span className="text-sm text-on-surface">Featured room</span>
-          </label>
-          <div className="flex gap-3 pt-2">
-            <button type="button" onClick={onClose} className="flex-1 py-2.5 border border-outline-variant rounded-lg text-sm hover:bg-surface">Cancel</button>
-            <button type="submit" disabled={isSaving} className="flex-1 py-2.5 bg-primary text-white text-sm font-semibold rounded-lg hover:bg-primary-dark disabled:opacity-60">
-              {isSaving ? 'Saving…' : isEdit ? 'Update Room' : 'Create Room'}
-            </button>
+        )}
+        {rt.bed_type && (
+          <div>
+            <span className="text-on-surface-variant">Bed</span>
+            <span className="ml-1 font-medium text-on-surface">{rt.bed_type}</span>
           </div>
-        </form>
+        )}
+        {rt.size_sqft && (
+          <div>
+            <span className="text-on-surface-variant">Size</span>
+            <span className="ml-1 font-medium text-on-surface">{rt.size_sqft} sq ft</span>
+          </div>
+        )}
+        <div>
+          <span className="text-on-surface-variant">Adults</span>
+          <span className="ml-1 font-medium text-on-surface">{rt.max_adults ?? '—'}</span>
+        </div>
+        <div>
+          <span className="text-on-surface-variant">Children</span>
+          <span className="ml-1 font-medium text-on-surface">{rt.max_children ?? 0}</span>
+        </div>
+        {rt.max_occupancy != null && (
+          <div>
+            <span className="text-on-surface-variant">Max Occ.</span>
+            <span className="ml-1 font-medium text-on-surface">{rt.max_occupancy}</span>
+          </div>
+        )}
+        {rt.view_type && (
+          <div className="col-span-2">
+            <span className="text-on-surface-variant">View</span>
+            <span className="ml-1 font-medium text-on-surface">{rt.view_type}</span>
+          </div>
+        )}
+      </div>
+
+      {/* Amenities */}
+      {amenitiesArr.length > 0 && (
+        <div className="flex flex-wrap gap-1">
+          {amenitiesArr.slice(0, 5).map((a: string) => (
+            <span
+              key={a}
+              className="px-1.5 py-0.5 bg-surface border border-outline-variant rounded text-xs text-on-surface-variant"
+            >
+              {a}
+            </span>
+          ))}
+          {amenitiesArr.length > 5 && (
+            <span className="px-1.5 py-0.5 text-xs text-on-surface-variant">
+              +{amenitiesArr.length - 5} more
+            </span>
+          )}
+        </div>
+      )}
+
+      {/* Flags */}
+      {rt.breakfast_included && (
+        <p className="text-xs text-green-600 font-medium">✓ Breakfast Included</p>
+      )}
+
+      {/* Actions */}
+      <div className="flex items-center gap-2 pt-1 border-t border-outline-variant">
+        <button
+          onClick={onEdit}
+          className="flex items-center gap-1.5 px-3 py-1.5 text-xs border border-outline-variant rounded-lg text-on-surface hover:bg-surface transition-colors"
+        >
+          <Edit2 size={12} />
+          Edit
+        </button>
+        <button
+          onClick={onToggle}
+          className={`flex items-center gap-1.5 px-3 py-1.5 text-xs border rounded-lg transition-colors ${
+            rt.is_active
+              ? 'border-yellow-300 text-yellow-700 hover:bg-yellow-50'
+              : 'border-green-300 text-green-700 hover:bg-green-50'
+          }`}
+        >
+          {rt.is_active ? 'Deactivate' : 'Activate'}
+        </button>
+        <button
+          onClick={onDelete}
+          className="ml-auto flex items-center gap-1.5 px-3 py-1.5 text-xs border border-red-200 rounded-lg text-red-500 hover:bg-red-50 transition-colors"
+        >
+          <Trash2 size={12} />
+          Delete
+        </button>
       </div>
     </div>
   );
