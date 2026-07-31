@@ -18,18 +18,33 @@ export default async function RoomsPage() {
 
   try {
     const supabase = await createServerClient();
+    const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL!;
     const { data } = await (supabase as any)
       .from('room_types')
       .select(`
         id, name, slug, description, short_description,
         base_price, weekend_price, max_occupancy, max_adults, max_children,
         size_sqft, bed_type, view_type, breakfast_included,
+        image_url, images,
         display_order,
         room_images (storage_path, alt_text, is_primary, display_order)
       `)
+      .eq('is_active', true)
       .order('display_order', { ascending: true });
     if (data) {
-      roomTypes = data;
+      // Build public image URL for each room type
+      roomTypes = data.map((r: any) => {
+        // Priority: room_images table → images JSONB array → image_url column
+        const fromTable = (r.room_images ?? [])
+          .sort((a: any, b: any) => (b.is_primary ? 1 : 0) - (a.is_primary ? 1 : 0))
+          .map((img: any) => img.storage_path
+            ? `${supabaseUrl}/storage/v1/object/public/hotel-images/${img.storage_path}`
+            : null
+          ).filter(Boolean);
+        const fromImages = (r.images ?? []).filter(Boolean);
+        const coverUrl = fromTable[0] || fromImages[0] || r.image_url || null;
+        return { ...r, coverUrl };
+      });
       categories = [...new Set<string>(data.map((r: any) => r.bed_type).filter(Boolean))] as string[];
     }
   } catch {
@@ -124,21 +139,17 @@ export default async function RoomsPage() {
                     <div className="flex flex-col md:flex-row">
                       {/* Room Image */}
                       <div className="w-full md:w-72 h-48 md:h-auto flex-shrink-0 relative overflow-hidden bg-gradient-to-br from-surface to-outline-variant">
-                        {(() => {
-                          const imgs = (room.room_images ?? []).sort((a: any, b: any) => (b.is_primary ? 1 : 0) - (a.is_primary ? 1 : 0));
-                          const primary = imgs[0];
-                          return primary ? (
-                            <img
-                              src={primary.storage_path}
-                              alt={primary.alt_text ?? room.name}
-                              className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-500"
-                            />
-                          ) : (
-                            <div className="w-full h-full flex items-center justify-center">
-                              <BedDouble size={48} className="text-outline" />
-                            </div>
-                          );
-                        })()}
+                        {room.coverUrl ? (
+                          <img
+                            src={room.coverUrl}
+                            alt={room.name}
+                            className="w-full h-full object-cover transition-transform duration-500 hover:scale-105"
+                          />
+                        ) : (
+                          <div className="w-full h-full flex items-center justify-center">
+                            <BedDouble size={48} className="text-outline" />
+                          </div>
+                        )}
                         {room.breakfast_included && (
                           <span className="absolute top-3 left-3 bg-green-500 text-white text-xs font-semibold px-2 py-0.5 rounded-full">
                             Breakfast Included
@@ -194,13 +205,13 @@ export default async function RoomsPage() {
                         {/* CTA */}
                         <div className="flex items-center gap-3 mt-auto pt-4 border-t border-outline-variant">
                           <Link
-                            href={`/rooms/${room.slug || room.id}`}
+                            href={`/rooms/${room.id}`}
                             className="flex-1 text-center py-2.5 bg-primary text-white text-sm font-semibold rounded-lg hover:bg-primary-dark transition-colors"
                           >
                             View Details &amp; Book
                           </Link>
                           <Link
-                            href={`/rooms/${room.slug || room.id}`}
+                            href={`/rooms/${room.id}`}
                             className="px-4 py-2.5 border border-outline-variant text-sm text-on-surface rounded-lg hover:bg-surface transition-colors"
                           >
                             More Info
