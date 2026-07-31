@@ -1193,7 +1193,7 @@ function BookPageInner() {
 
       // ── Send confirmation email (non-blocking) ──
       try {
-        fetch('/api/email/send', {
+        const emailRes = await fetch('/api/email/send', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({
@@ -1201,24 +1201,27 @@ function BookPageInner() {
             to:         state.guest.email,
             toName:     state.guest.fullName,
             vars: {
-              guest_name:        state.guest.fullName,
-              booking_reference: data.booking_reference ?? '',
-              room_name:         state.selectedRoom!.room_type_name,
-              room_number:       state.selectedRoom!.room_number,
-              check_in:          formatDate(state.checkIn),
-              check_out:         formatDate(state.checkOut),
-              nights:            String(state.breakdown!.nights),
-              num_adults:        String(state.adults),
-              total_amount:      formatINR(state.breakdown!.totalAmount),
-              payment_method:    state.guest.paymentMethod === 'pay_at_hotel' ? 'Pay at Hotel' : 'Online',
-              special_requests:  state.guest.specialRequests || 'None',
-              hotel_phone:       '+91 80 0000 0000',
-              hotel_email:       'info@supertownhouse.com',
-              dashboard_url:     window.location.origin + '/dashboard/bookings',
+              name:           state.guest.fullName,
+              booking_ref:    data.booking_reference ?? '',
+              room_name:      state.selectedRoom!.room_type_name + ' · #' + state.selectedRoom!.room_number,
+              check_in:       formatDate(state.checkIn),
+              check_out:      formatDate(state.checkOut),
+              guests:         state.adults + ' adult' + (state.adults > 1 ? 's' : ''),
+              total_amount:   formatINR(state.breakdown!.totalAmount),
+              payment_status: state.guest.paymentMethod === 'pay_at_hotel' ? 'Pay at Hotel' : 'Paid Online',
+              booking_url:    window.location.origin + '/dashboard/bookings',
             },
           }),
-        }).catch(() => console.warn('[book] Confirmation email failed silently'));
-      } catch { /* silent */ }
+        });
+        const emailData = await emailRes.json();
+        if (!emailData.success) {
+          console.warn('[book] Email send failed:', emailData.error);
+        } else {
+          console.info('[book] Confirmation email sent via', emailData.provider);
+        }
+      } catch (emailErr) {
+        console.warn('[book] Email fetch error:', emailErr);
+      }
 
     } catch (err: any) {
       toast.error(err?.message ?? 'An unexpected error occurred.');
