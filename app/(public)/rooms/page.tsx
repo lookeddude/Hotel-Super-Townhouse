@@ -28,7 +28,7 @@ export default async function RoomsPage() {
         id, name, slug, description, short_description,
         base_price, weekend_price, max_occupancy, max_adults, max_children,
         size_sqft, bed_type, view_type, breakfast_included,
-        image_url, images, is_active, display_order,
+        thumbnail_url, image_url, images, is_active, display_order,
         room_images (storage_path, alt_text, is_primary, display_order)
       `)
       .order('display_order', { ascending: true });
@@ -55,7 +55,7 @@ export default async function RoomsPage() {
             )
             .filter(Boolean);
           const fromImages = (r.images ?? []).filter(Boolean);
-          const coverUrl = fromTable[0] || fromImages[0] || r.image_url || null;
+          const coverUrl = fromTable[0] || r.thumbnail_url || fromImages[0] || r.image_url || null;
           return { ...r, coverUrl };
         });
       categories = [...new Set<string>(
