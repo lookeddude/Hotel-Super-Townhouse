@@ -913,9 +913,41 @@ export default function RoomsPage() {
                 />
               </div>
 
-              {/* Multiple Images */}
+              {/* ── Thumbnail URL (Card Cover Photo) ── */}
+              <div className="col-span-1 sm:col-span-2">
+                <div className="bg-blue-50 border border-blue-200 rounded-lg p-4 space-y-2">
+                  <div className="flex items-center gap-2 mb-1">
+                    <span className="text-sm font-semibold text-blue-800">🖼️ Thumbnail / Card Image</span>
+                    <span className="text-xs bg-blue-100 text-blue-700 px-2 py-0.5 rounded-full font-medium">Shown on Rooms Listing Page</span>
+                  </div>
+                  <p className="text-xs text-blue-600 mb-2">This photo appears on the rooms listing page as the card cover. Upload a photo in Gallery, copy its URL, and paste here.</p>
+                  <input
+                    type="url"
+                    value={typeForm.image_url ?? ''}
+                    onChange={(e) => handleTypeFormChange('image_url', e.target.value)}
+                    className={INPUT_CLS}
+                    placeholder="https://jzcmfpvscdsvkijpgdlj.supabase.co/storage/v1/object/public/hotel-images/..."
+                  />
+                  {typeForm.image_url && (
+                    <div className="mt-2 rounded-lg overflow-hidden w-32 h-20 border border-blue-200">
+                      <img
+                        src={typeForm.image_url}
+                        alt="Thumbnail preview"
+                        className="w-full h-full object-cover"
+                        onError={(e) => { (e.target as HTMLImageElement).style.display = 'none'; }}
+                      />
+                    </div>
+                  )}
+                </div>
+              </div>
+
+              {/* ── Slideshow Images (Room Detail Page) ── */}
               <div className="col-span-1 sm:col-span-2 space-y-2">
-                <label className="text-xs font-medium text-on-surface block">Room Images (add multiple URLs for slideshow)</label>
+                <div className="flex items-center gap-2 mb-1">
+                  <label className="text-xs font-semibold text-on-surface block">🎞️ Slideshow Photos</label>
+                  <span className="text-xs bg-gray-100 text-gray-600 px-2 py-0.5 rounded-full font-medium">Shown on Room Detail Page</span>
+                </div>
+                <p className="text-xs text-on-surface-variant mb-2">Add multiple photos — guests can swipe through them on the room detail page.</p>
                 {(typeForm.images ?? []).map((url: string, idx: number) => (
                   <div key={idx} className="flex gap-2 items-center">
                     <input
@@ -927,43 +959,31 @@ export default function RoomsPage() {
                         setTypeForm((p: any) => ({ ...p, images: updated }));
                       }}
                       className={INPUT_CLS}
-                      placeholder={idx === 0 ? 'Main photo URL (shown as cover)' : `Extra photo ${idx + 1} URL`}
+                      placeholder={idx === 0 ? 'Photo 1 URL' : `Photo ${idx + 1} URL`}
                     />
-                    {idx === 0 ? (
-                      <span className="text-xs text-on-surface-variant whitespace-nowrap w-12 text-center">Main</span>
-                    ) : (
-                      <button
-                        type="button"
-                        onClick={() => {
-                          const updated = (typeForm.images ?? []).filter((_: string, i: number) => i !== idx);
-                          setTypeForm((p: any) => ({ ...p, images: updated }));
-                        }}
-                        className="w-12 h-9 text-error hover:bg-red-50 rounded flex items-center justify-center flex-shrink-0"
-                      >
-                        ✕
-                      </button>
-                    )}
+                    <button
+                      type="button"
+                      onClick={() => {
+                        const updated = (typeForm.images ?? []).filter((_: string, i: number) => i !== idx);
+                        setTypeForm((p: any) => ({ ...p, images: updated }));
+                      }}
+                      className="w-9 h-9 text-error hover:bg-red-50 rounded flex items-center justify-center flex-shrink-0 text-lg"
+                    >
+                      ✕
+                    </button>
                   </div>
                 ))}
                 {(typeForm.images ?? []).length < 8 && (
                   <button
                     type="button"
                     onClick={() => setTypeForm((p: any) => ({ ...p, images: [...(p.images ?? []), ''] }))}
-                    className="text-xs text-primary hover:underline flex items-center gap-1 mt-1"
+                    className="text-xs text-primary hover:underline flex items-center gap-1 mt-1 font-medium"
                   >
-                    + Add another photo
-                  </button>
-                )}
-                {(typeForm.images ?? []).length === 0 && (
-                  <button
-                    type="button"
-                    onClick={() => setTypeForm((p: any) => ({ ...p, images: [''] }))}
-                    className="text-xs text-primary hover:underline"
-                  >
-                    + Add photo URL
+                    + Add slideshow photo
                   </button>
                 )}
               </div>
+
 
               {/* Amenities */}
               <div>
