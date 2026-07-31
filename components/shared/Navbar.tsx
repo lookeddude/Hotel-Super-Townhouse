@@ -19,6 +19,7 @@ export function Navbar() {
   const [profileOpen, setProfileOpen] = useState(false);
   const [user, setUser] = useState<any>(null);
   const [profile, setProfile] = useState<any>(null);
+  const [isAdmin, setIsAdmin] = useState(false);
   const pathname = usePathname();
   const router = useRouter();
   const profileRef = useRef<HTMLDivElement>(null);
@@ -32,19 +33,42 @@ export function Navbar() {
   useEffect(() => {
     supabase.auth.getSession().then(({ data }) => {
       setUser(data.session?.user ?? null);
-      if (data.session?.user) fetchProfile(data.session.user.id);
+      if (data.session?.user) {
+        fetchProfile(data.session.user.id);
+        fetchRole(data.session.user.id);
+      }
     });
     const { data: listener } = supabase.auth.onAuthStateChange((_event, session) => {
       setUser(session?.user ?? null);
-      if (session?.user) fetchProfile(session.user.id);
-      else setProfile(null);
+      if (session?.user) {
+        fetchProfile(session.user.id);
+        fetchRole(session.user.id);
+      } else {
+        setProfile(null);
+        setIsAdmin(false);
+      }
     });
     return () => listener.subscription.unsubscribe();
   }, []);
 
   const fetchProfile = async (userId: string) => {
-    const { data } = await (supabase as any).from('profiles').select('full_name, avatar_url, role').eq('id', userId).single();
+    const { data } = await (supabase as any)
+      .from('profiles')
+      .select('full_name, avatar_url')
+      .eq('id', userId)
+      .single();
     if (data) setProfile(data);
+  };
+
+  const fetchRole = async (userId: string) => {
+    const { data } = await (supabase as any)
+      .from('user_roles')
+      .select('roles(name)')
+      .eq('user_id', userId)
+      .limit(1)
+      .maybeSingle();
+    const roleName = data?.roles?.name ?? '';
+    setIsAdmin(['admin', 'super_admin', 'staff', 'manager'].includes(roleName));
   };
 
   // Close profile dropdown on outside click
@@ -81,7 +105,7 @@ export function Navbar() {
     ? profile.full_name.split(' ').map((n: string) => n[0]).join('').toUpperCase().slice(0, 2)
     : user?.email?.[0]?.toUpperCase() ?? 'U';
 
-  const isAdmin = profile?.role === 'admin' || profile?.role === 'super_admin' || profile?.role === 'staff';
+  // isAdmin is set by fetchRole() above
 
   return (
     <>
