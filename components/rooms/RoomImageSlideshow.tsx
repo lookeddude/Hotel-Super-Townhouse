@@ -82,7 +82,8 @@ export function RoomImageSlideshow({ images, roomName }: RoomImageSlideshowProps
         <div className="absolute inset-0 bg-gradient-to-t from-black/80 to-transparent pointer-events-none" />
         <div className="absolute bottom-0 left-0 right-0 p-6 md:p-10 text-white pointer-events-none">
           <div className="container-custom">
-            <h1 className="font-heading text-3xl md:text-5xl font-bold">{roomName}</h1>
+            <div className="w-10 h-1 bg-primary rounded mb-3" />
+            <h1 className="font-heading text-3xl md:text-5xl font-bold text-white drop-shadow-[0_2px_8px_rgba(0,0,0,0.8)]">{roomName}</h1>
           </div>
         </div>
       </div>
@@ -138,10 +139,13 @@ export function RoomImageSlideshow({ images, roomName }: RoomImageSlideshowProps
           </>
         )}
 
-        {/* Room name */}
-        <div className="absolute bottom-0 left-0 right-0 p-6 md:p-10 z-30 pointer-events-none text-white">
+        {/* Room name — white with red accent */}
+        <div className="absolute bottom-0 left-0 right-0 p-6 md:p-10 z-30 pointer-events-none">
           <div className="container-custom">
-            <h1 className="font-heading text-3xl md:text-5xl font-bold drop-shadow-lg">{roomName}</h1>
+            <div className="w-10 h-1 bg-primary rounded mb-3" />
+            <h1 className="font-heading text-3xl md:text-5xl font-bold text-white drop-shadow-[0_2px_8px_rgba(0,0,0,0.9)]">
+              {roomName}
+            </h1>
           </div>
         </div>
 

@@ -122,7 +122,13 @@ export default async function RoomDetailPage({ params }: RoomDetailPageProps) {
     <div className="min-h-screen bg-background relative">
       <div className="absolute top-4 left-0 right-0 z-40 pointer-events-none">
         <div className="container-custom pointer-events-auto">
-          <Breadcrumb className="[&_*]:text-white/70 drop-shadow-md" />
+          <Breadcrumb
+            items={[
+              { label: 'Rooms', href: '/rooms' },
+              { label: roomType.name },
+            ]}
+            className="[&_*]:text-white/80 drop-shadow-md"
+          />
         </div>
       </div>
       
