@@ -144,12 +144,22 @@ export default async function RoomsPage() {
                             src={room.coverUrl}
                             alt={room.name}
                             className="w-full h-full object-cover transition-transform duration-500 hover:scale-105"
+                            onError={(e) => {
+                              (e.target as HTMLImageElement).style.display = 'none';
+                              const parent = (e.target as HTMLImageElement).parentElement;
+                              if (parent) {
+                                const fallback = parent.querySelector('.img-fallback') as HTMLElement;
+                                if (fallback) fallback.style.display = 'flex';
+                              }
+                            }}
                           />
-                        ) : (
-                          <div className="w-full h-full flex items-center justify-center">
-                            <BedDouble size={48} className="text-outline" />
-                          </div>
-                        )}
+                        ) : null}
+                        <div
+                          className="img-fallback w-full h-full flex items-center justify-center"
+                          style={{ display: room.coverUrl ? 'none' : 'flex' }}
+                        >
+                          <BedDouble size={48} className="text-outline" />
+                        </div>
                         {room.breakfast_included && (
                           <span className="absolute top-3 left-3 bg-green-500 text-white text-xs font-semibold px-2 py-0.5 rounded-full">
                             Breakfast Included
