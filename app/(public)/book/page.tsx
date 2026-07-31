@@ -1223,6 +1223,19 @@ function BookPageInner() {
         console.warn('[book] Email fetch error:', emailErr);
       }
 
+      // ── Notify admin (non-blocking) ──
+      fetch('/api/notifications/admin', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          type:       'booking_confirmed',
+          title:      `🏨 New Booking — ${data.booking_reference ?? ''}`,
+          body:       `${state.guest.fullName} booked ${state.selectedRoom!.room_type_name} · #${state.selectedRoom!.room_number} from ${formatDate(state.checkIn)} to ${formatDate(state.checkOut)} · ${formatINR(state.breakdown!.totalAmount)}`,
+          data:       { booking_reference: data.booking_reference, guest_name: state.guest.fullName, guest_email: state.guest.email },
+          booking_id: data.id ?? undefined,
+        }),
+      }).catch(() => console.warn('[book] Admin notification failed silently'));
+
     } catch (err: any) {
       toast.error(err?.message ?? 'An unexpected error occurred.');
     } finally {

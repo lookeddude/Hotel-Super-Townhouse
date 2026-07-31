@@ -37,6 +37,19 @@ export function ContactForm() {
       setSubmitting(false);
       return;
     }
+
+    // Notify admin (non-blocking)
+    fetch('/api/notifications/admin', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        type:  'admin_alert',
+        title: `💬 New Inquiry — ${form.full_name}`,
+        body:  `${form.email}${form.whatsapp ? ' · WA: ' + form.whatsapp : ''} — "${form.subject || 'General Inquiry'}": ${form.message.slice(0, 100)}${form.message.length > 100 ? '…' : ''}`,
+        data:  { full_name: form.full_name, email: form.email, phone: form.phone, whatsapp: form.whatsapp, subject: form.subject },
+      }),
+    }).catch(() => {});
+
     setSubmitted(true);
     setSubmitting(false);
   };
