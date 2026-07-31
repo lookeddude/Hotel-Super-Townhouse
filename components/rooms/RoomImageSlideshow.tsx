@@ -84,14 +84,14 @@ export function RoomImageSlideshow({ images, roomName }: RoomImageSlideshowProps
           <>
             <button
               onClick={(e) => { e.preventDefault(); goToPrev(); }}
-              className="absolute left-3 top-1/2 -translate-y-1/2 bg-black/40 hover:bg-black/60 text-white rounded-full p-2 transition-all z-30 opacity-0 group-hover:opacity-100 focus:opacity-100"
+              className="absolute left-3 top-1/2 -translate-y-1/2 bg-black/50 hover:bg-black/75 text-white rounded-full p-2.5 transition-all z-30"
               aria-label="Previous image"
             >
               <ChevronLeft size={24} />
             </button>
             <button
               onClick={(e) => { e.preventDefault(); goToNext(); }}
-              className="absolute right-3 top-1/2 -translate-y-1/2 bg-black/40 hover:bg-black/60 text-white rounded-full p-2 transition-all z-30 opacity-0 group-hover:opacity-100 focus:opacity-100"
+              className="absolute right-3 top-1/2 -translate-y-1/2 bg-black/50 hover:bg-black/75 text-white rounded-full p-2.5 transition-all z-30"
               aria-label="Next image"
             >
               <ChevronRight size={24} />
@@ -123,27 +123,33 @@ export function RoomImageSlideshow({ images, roomName }: RoomImageSlideshowProps
         )}
       </div>
 
-      {images.length > 1 && (
-        <div className="container-custom py-4">
-          <div className="flex gap-3 overflow-x-auto pb-2 scrollbar-hide">
+      {/* Thumbnail Strip — always shown */}
+      <div className="bg-gray-950 py-3 px-4">
+        <div className="container-custom">
+          <div className="flex gap-3 overflow-x-auto pb-1">
             {images.map((img, idx) => (
               <button
                 key={idx}
                 onClick={() => setCurrentIndex(idx)}
-                className={`relative flex-shrink-0 h-16 w-24 rounded-lg overflow-hidden transition-all ${
-                  idx === currentIndex ? 'ring-2 ring-primary scale-105' : 'opacity-70 hover:opacity-100'
+                className={`relative flex-shrink-0 h-20 w-28 rounded-lg overflow-hidden transition-all border-2 ${
+                  idx === currentIndex
+                    ? 'border-primary scale-105 brightness-110'
+                    : 'border-transparent opacity-60 hover:opacity-100'
                 }`}
               >
                 <img
                   src={img.url}
-                  alt={`Thumbnail ${idx + 1}`}
+                  alt={`View ${idx + 1}`}
                   className="w-full h-full object-cover"
                 />
+                {idx === currentIndex && (
+                  <div className="absolute inset-0 ring-2 ring-inset ring-primary/50 rounded-lg" />
+                )}
               </button>
             ))}
           </div>
         </div>
-      )}
+      </div>
     </div>
   );
 }
