@@ -18,8 +18,10 @@ export default async function RoomsPage() {
 
   try {
     const supabase = await createServerClient();
-    const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL!;
-    const { data } = await (supabase as any)
+    const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL ?? '';
+
+    // Try full query with new columns first
+    let { data, error } = await (supabase as any)
       .from('room_types')
       .select(`
         id, name, slug, description, short_description,
@@ -31,24 +33,43 @@ export default async function RoomsPage() {
       `)
       .eq('is_active', true)
       .order('display_order', { ascending: true });
+
+    // If query failed (e.g. missing columns) → fall back to core columns only
+    if (error) {
+      const fallback = await (supabase as any)
+        .from('room_types')
+        .select(`
+          id, name, slug, description, short_description,
+          base_price, max_occupancy,
+          display_order,
+          room_images (storage_path, alt_text, is_primary, display_order)
+        `)
+        .eq('is_active', true)
+        .order('display_order', { ascending: true });
+      data = fallback.data;
+    }
+
     if (data) {
-      // Build public image URL for each room type
       roomTypes = data.map((r: any) => {
-        // Priority: room_images table → images JSONB array → image_url column
+        // Build cover URL: room_images table → images JSONB → image_url column
         const fromTable = (r.room_images ?? [])
           .sort((a: any, b: any) => (b.is_primary ? 1 : 0) - (a.is_primary ? 1 : 0))
-          .map((img: any) => img.storage_path
-            ? `${supabaseUrl}/storage/v1/object/public/hotel-images/${img.storage_path}`
-            : null
-          ).filter(Boolean);
+          .map((img: any) =>
+            img.storage_path
+              ? `${supabaseUrl}/storage/v1/object/public/hotel-images/${img.storage_path}`
+              : null
+          )
+          .filter(Boolean);
         const fromImages = (r.images ?? []).filter(Boolean);
         const coverUrl = fromTable[0] || fromImages[0] || r.image_url || null;
         return { ...r, coverUrl };
       });
-      categories = [...new Set<string>(data.map((r: any) => r.bed_type).filter(Boolean))] as string[];
+      categories = [...new Set<string>(
+        data.map((r: any) => r.bed_type).filter(Boolean)
+      )] as string[];
     }
   } catch {
-    // Silently fall back
+    // Silently fall back — page renders empty state
   }
 
   return (
