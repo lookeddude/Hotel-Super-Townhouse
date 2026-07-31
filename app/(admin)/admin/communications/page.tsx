@@ -1,18 +1,18 @@
 'use client';
 /**
- * Phase 9 — Admin Communication Center
- * Central hub: stats overview, email queue, automation logs, scheduled reminders, activity feed
+ * Admin Communication Center
+ * Includes: Contact Messages / Inquiries, Email Queue, Automation Logs, Activity Feed
  */
 import { useEffect, useState, useCallback } from 'react';
 import Link from 'next/link';
 import { useSupabase } from '@/providers/SupabaseProvider';
+import { getContactMessages, markContactRead, markContactResolved, deleteContactMessage } from '@/services/contactService';
 import { getEmailQueue, getEmailQueueStats, retryEmail } from '@/services/emailService';
-import { getSchedulerStats, getUpcomingReminders } from '@/services/schedulerService';
 import { ActivityFeedWidget } from '@/components/notifications/ActivityFeed';
-import { formatINR } from '@/services/pricingService';
 import {
   Bell, Mail, Activity, Clock, RefreshCw, CheckCircle, XCircle,
-  AlertTriangle, RotateCcw, Download, ChevronRight, Send, Calendar,
+  AlertTriangle, RotateCcw, ChevronRight, Send, MessageSquare,
+  Phone, Trash2, Eye, MailOpen, User, Calendar,
 } from 'lucide-react';
 import { toast } from 'sonner';
 
@@ -20,9 +20,8 @@ function Skeleton({ className = '' }: { className?: string }) {
   return <div className={`bg-surface rounded animate-pulse ${className}`} />;
 }
 
-function StatCard({ label, value, sub, icon: Icon, color = 'text-on-surface' }: {
-  label: string; value: string | number; sub?: string;
-  icon: any; color?: string;
+function StatCard({ label, value, icon: Icon, color = 'text-on-surface' }: {
+  label: string; value: string | number; icon: any; color?: string;
 }) {
   return (
     <div className="bg-white rounded-xl border border-outline-variant p-4">
@@ -30,7 +29,6 @@ function StatCard({ label, value, sub, icon: Icon, color = 'text-on-surface' }: 
         <div>
           <p className="text-xs text-on-surface-variant">{label}</p>
           <p className={`font-bold text-2xl mt-1 ${color}`}>{value}</p>
-          {sub && <p className="text-xs text-on-surface-variant mt-0.5">{sub}</p>}
         </div>
         <Icon size={17} className={`${color} opacity-70`} />
       </div>
@@ -38,33 +36,158 @@ function StatCard({ label, value, sub, icon: Icon, color = 'text-on-surface' }: 
   );
 }
 
+function statusBadge(status: string) {
+  const map: Record<string, string> = {
+    pending:    'bg-yellow-100 text-yellow-700',
+    sent:       'bg-green-100 text-green-700',
+    failed:     'bg-red-100 text-red-700',
+    processing: 'bg-blue-100 text-blue-700',
+    unread:     'bg-blue-100 text-blue-700',
+    read:       'bg-gray-100 text-gray-600',
+    replied:    'bg-green-100 text-green-700',
+  };
+  return (
+    <span className={`px-2 py-0.5 rounded-full text-[10px] font-medium ${map[status] ?? 'bg-gray-100 text-gray-600'}`}>
+      {status}
+    </span>
+  );
+}
+
+// ── Contact Message Modal ─────────────────────────────────────────────────────
+function MessageModal({ msg, onClose, onMarkRead, onMarkResolved, onDelete }: {
+  msg: any; onClose: () => void;
+  onMarkRead: (id: string) => void;
+  onMarkResolved: (id: string, val: boolean) => void;
+  onDelete: (id: string) => void;
+}) {
+  return (
+    <div className="fixed inset-0 bg-black/40 z-50 flex items-center justify-center p-4" onClick={onClose}>
+      <div className="bg-white rounded-2xl shadow-2xl w-full max-w-lg p-6" onClick={e => e.stopPropagation()}>
+        {/* Header */}
+        <div className="flex items-start justify-between mb-4">
+          <div>
+            <h3 className="font-heading font-bold text-lg text-on-surface">{msg.full_name}</h3>
+            <p className="text-sm text-on-surface-variant">{msg.email} {msg.phone && `· ${msg.phone}`}</p>
+          </div>
+          <button onClick={onClose} className="text-on-surface-variant hover:text-on-surface p-1">✕</button>
+        </div>
+
+        {/* Subject */}
+        <div className="bg-surface rounded-lg px-4 py-2 mb-4">
+          <p className="text-xs text-on-surface-variant">Subject</p>
+          <p className="font-semibold text-sm text-on-surface mt-0.5">{msg.subject || 'General Inquiry'}</p>
+        </div>
+
+        {/* Message */}
+        <div className="bg-surface rounded-lg px-4 py-3 mb-5">
+          <p className="text-xs text-on-surface-variant mb-1">Message</p>
+          <p className="text-sm text-on-surface leading-relaxed whitespace-pre-wrap">{msg.message}</p>
+        </div>
+
+        {/* Meta */}
+        <p className="text-xs text-on-surface-variant mb-5">
+          Received: {new Date(msg.created_at).toLocaleString('en-IN', { day: '2-digit', month: 'short', year: 'numeric', hour: '2-digit', minute: '2-digit' })}
+        </p>
+
+        {/* Actions */}
+        <div className="flex flex-wrap gap-2">
+          <a href={`mailto:${msg.email}?subject=Re: ${encodeURIComponent(msg.subject || 'Your Inquiry')}&body=Hi ${encodeURIComponent(msg.full_name)},%0A%0A`}
+            className="flex items-center gap-1.5 px-3 py-2 bg-primary text-white text-sm rounded-lg hover:opacity-90">
+            <Mail size={13} /> Reply via Email
+          </a>
+          {msg.phone && (
+            <a href={`tel:${msg.phone}`}
+              className="flex items-center gap-1.5 px-3 py-2 border border-outline-variant text-sm rounded-lg hover:bg-surface">
+              <Phone size={13} /> Call
+            </a>
+          )}
+          {!msg.is_read && (
+            <button onClick={() => onMarkRead(msg.id)}
+              className="flex items-center gap-1.5 px-3 py-2 border border-outline-variant text-sm rounded-lg hover:bg-surface">
+              <MailOpen size={13} /> Mark Read
+            </button>
+          )}
+          <button onClick={() => onMarkResolved(msg.id, !msg.is_replied)}
+            className="flex items-center gap-1.5 px-3 py-2 border border-outline-variant text-sm rounded-lg hover:bg-surface">
+            <CheckCircle size={13} /> {msg.is_replied ? 'Mark Unresolved' : 'Mark Resolved'}
+          </button>
+          <button onClick={() => { onDelete(msg.id); onClose(); }}
+            className="flex items-center gap-1.5 px-3 py-2 border border-red-200 text-red-600 text-sm rounded-lg hover:bg-red-50 ml-auto">
+            <Trash2 size={13} /> Delete
+          </button>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+// ── Main Page ─────────────────────────────────────────────────────────────────
 export default function CommunicationsPage() {
   const { supabase } = useSupabase();
-  const [emailStats,  setEmailStats]  = useState<any>(null);
-  const [schedStats,  setSchedStats]  = useState<any>(null);
-  const [emailQueue,  setEmailQueue]  = useState<any[]>([]);
-  const [upcoming,    setUpcoming]    = useState<any[]>([]);
-  const [automLogs,   setAutomLogs]   = useState<any[]>([]);
-  const [loading,     setLoading]     = useState(true);
+  const [contacts,   setContacts]   = useState<any[]>([]);
+  const [emailStats, setEmailStats] = useState<any>(null);
+  const [emailQueue, setEmailQueue] = useState<any[]>([]);
+  const [loading,    setLoading]    = useState(true);
+  const [selectedMsg, setSelectedMsg] = useState<any>(null);
+  const [filter, setFilter] = useState<'all' | 'unread' | 'resolved'>('all');
 
   const load = useCallback(async () => {
     setLoading(true);
-    const [eq, ss, queue, up, logs] = await Promise.allSettled([
-      getEmailQueueStats(supabase),
-      getSchedulerStats(supabase),
-      getEmailQueue(supabase, 10),
-      getUpcomingReminders(supabase, 8),
-      (supabase as any).from('automation_logs').select('*').order('created_at', { ascending: false }).limit(10).then((r: any) => r.data ?? []),
-    ]);
-    if (eq.status === 'fulfilled')    setEmailStats(eq.value);
-    if (ss.status === 'fulfilled')    setSchedStats(ss.value);
-    if (queue.status === 'fulfilled') setEmailQueue(queue.value);
-    if (up.status === 'fulfilled')    setUpcoming(up.value);
-    if (logs.status === 'fulfilled')  setAutomLogs(logs.value);
+    try {
+      // Load contact messages
+      const { data: msgs } = await (supabase as any)
+        .from('contact_messages')
+        .select('*')
+        .order('created_at', { ascending: false })
+        .limit(100);
+      setContacts(msgs ?? []);
+
+      // Load email stats
+      const { data: eq } = await (supabase as any)
+        .from('email_queue')
+        .select('status')
+        .limit(1000);
+      const rows = eq ?? [];
+      setEmailStats({
+        pending: rows.filter((r: any) => r.status === 'pending').length,
+        sent:    rows.filter((r: any) => r.status === 'sent').length,
+        failed:  rows.filter((r: any) => r.status === 'failed').length,
+        total:   rows.length,
+      });
+
+      // Load email queue
+      const { data: queue } = await (supabase as any)
+        .from('email_queue')
+        .select('*')
+        .order('created_at', { ascending: false })
+        .limit(8);
+      setEmailQueue(queue ?? []);
+    } catch (e) {
+      console.error(e);
+    }
     setLoading(false);
   }, [supabase]);
 
   useEffect(() => { load(); }, [load]);
+
+  const handleMarkRead = async (id: string) => {
+    await markContactRead(supabase, id);
+    setContacts(prev => prev.map(m => m.id === id ? { ...m, is_read: true } : m));
+    toast.success('Marked as read');
+  };
+
+  const handleMarkResolved = async (id: string, val: boolean) => {
+    await markContactResolved(supabase, id, val);
+    setContacts(prev => prev.map(m => m.id === id ? { ...m, is_replied: val } : m));
+    toast.success(val ? 'Marked as resolved' : 'Marked as unresolved');
+  };
+
+  const handleDelete = async (id: string) => {
+    if (!confirm('Delete this message?')) return;
+    await deleteContactMessage(supabase, id);
+    setContacts(prev => prev.filter(m => m.id !== id));
+    toast.success('Message deleted');
+  };
 
   const handleRetry = async (id: string) => {
     const ok = await retryEmail(supabase, id);
@@ -72,35 +195,32 @@ export default function CommunicationsPage() {
     else toast.error('Retry failed');
   };
 
-  const statusBadge = (status: string) => {
-    const map: Record<string, string> = {
-      pending:    'bg-yellow-100 text-yellow-700',
-      sent:       'bg-green-100 text-green-700',
-      failed:     'bg-red-100 text-red-700',
-      processing: 'bg-blue-100 text-blue-700',
-      cancelled:  'bg-gray-100 text-gray-600',
-      success:    'bg-green-100 text-green-700',
-      partial:    'bg-orange-100 text-orange-700',
-      skipped:    'bg-gray-100 text-gray-600',
-    };
-    return (
-      <span className={`px-2 py-0.5 rounded-full text-[10px] font-medium ${map[status] ?? 'bg-gray-100 text-gray-600'}`}>
-        {status}
-      </span>
-    );
+  const openMsg = async (msg: any) => {
+    setSelectedMsg(msg);
+    if (!msg.is_read) await handleMarkRead(msg.id);
   };
+
+  const filtered = contacts.filter(m => {
+    if (filter === 'unread')   return !m.is_read;
+    if (filter === 'resolved') return m.is_replied;
+    return true;
+  });
+
+  const unreadCount   = contacts.filter(m => !m.is_read).length;
+  const resolvedCount = contacts.filter(m => m.is_replied).length;
 
   return (
     <div className="space-y-6">
+
       {/* Header */}
       <div className="flex items-center justify-between flex-wrap gap-3">
         <div>
           <h1 className="font-heading text-headline-md text-on-surface">Communication Center</h1>
           <p className="text-sm text-on-surface-variant mt-0.5">
-            Notifications · Emails · Automation · Scheduled Reminders · Activity Feed
+            Contact Inquiries · Email Queue · Activity Feed
           </p>
         </div>
-        <div className="flex items-center gap-2 flex-wrap">
+        <div className="flex items-center gap-2">
           <Link href="/admin/communications/email-queue"
             className="flex items-center gap-1.5 px-3 py-1.5 text-sm border border-outline-variant rounded-lg hover:bg-surface transition-colors">
             <Mail size={13} /> Email Queue
@@ -116,173 +236,179 @@ export default function CommunicationsPage() {
         </div>
       </div>
 
-      {/* KPI Row — Email */}
+      {/* ── Contact Messages Section ─────────────────────────────────── */}
+      <div className="bg-white rounded-2xl border border-outline-variant overflow-hidden shadow-sm">
+
+        {/* Section Header */}
+        <div className="flex items-center justify-between px-6 py-4 border-b border-outline-variant bg-gradient-to-r from-primary/5 to-transparent">
+          <div className="flex items-center gap-3">
+            <div className="w-9 h-9 bg-primary/10 rounded-lg flex items-center justify-center">
+              <MessageSquare size={17} className="text-primary" />
+            </div>
+            <div>
+              <h2 className="font-semibold text-on-surface">Contact Inquiries</h2>
+              <p className="text-xs text-on-surface-variant">{contacts.length} total · {unreadCount} unread</p>
+            </div>
+          </div>
+
+          {/* Filter tabs */}
+          <div className="flex gap-1 bg-surface rounded-lg p-1">
+            {(['all', 'unread', 'resolved'] as const).map(f => (
+              <button key={f} onClick={() => setFilter(f)}
+                className={`px-3 py-1 text-xs rounded-md font-medium capitalize transition-colors ${filter === f ? 'bg-primary text-white' : 'text-on-surface-variant hover:text-on-surface'}`}>
+                {f} {f === 'unread' && unreadCount > 0 && `(${unreadCount})`}
+                {f === 'resolved' && resolvedCount > 0 && `(${resolvedCount})`}
+              </button>
+            ))}
+          </div>
+        </div>
+
+        {/* Messages List */}
+        {loading ? (
+          <div className="p-6 space-y-3">
+            {[1,2,3].map(i => <Skeleton key={i} className="h-16" />)}
+          </div>
+        ) : filtered.length === 0 ? (
+          <div className="flex flex-col items-center justify-center py-16 text-on-surface-variant gap-3">
+            <MessageSquare size={40} className="opacity-30" />
+            <p className="font-medium">
+              {filter === 'all' ? 'No messages yet' : `No ${filter} messages`}
+            </p>
+            <p className="text-sm">Messages from the contact form will appear here</p>
+          </div>
+        ) : (
+          <div className="divide-y divide-outline-variant/50">
+            {filtered.map(msg => (
+              <div key={msg.id}
+                className={`flex items-start gap-4 px-6 py-4 hover:bg-surface/50 cursor-pointer transition-colors ${!msg.is_read ? 'bg-blue-50/30' : ''}`}
+                onClick={() => openMsg(msg)}>
+
+                {/* Avatar */}
+                <div className="w-10 h-10 rounded-full bg-primary/10 flex items-center justify-center flex-shrink-0">
+                  <User size={16} className="text-primary" />
+                </div>
+
+                {/* Content */}
+                <div className="flex-1 min-w-0">
+                  <div className="flex items-center gap-2 flex-wrap">
+                    <p className={`text-sm font-semibold text-on-surface ${!msg.is_read ? 'font-bold' : ''}`}>
+                      {msg.full_name}
+                    </p>
+                    {!msg.is_read && (
+                      <span className="w-2 h-2 rounded-full bg-primary flex-shrink-0" title="Unread" />
+                    )}
+                    {msg.is_replied && statusBadge('replied')}
+                  </div>
+                  <p className="text-xs text-on-surface-variant truncate">{msg.email} {msg.phone && `· ${msg.phone}`}</p>
+                  <p className="text-sm text-on-surface-variant truncate mt-0.5">
+                    <span className="font-medium text-on-surface">{msg.subject || 'General Inquiry'}</span> — {msg.message}
+                  </p>
+                </div>
+
+                {/* Time & actions */}
+                <div className="flex flex-col items-end gap-2 flex-shrink-0">
+                  <p className="text-[10px] text-on-surface-variant whitespace-nowrap">
+                    {new Date(msg.created_at).toLocaleDateString('en-IN', { day: '2-digit', month: 'short', hour: '2-digit', minute: '2-digit' })}
+                  </p>
+                  <div className="flex gap-1" onClick={e => e.stopPropagation()}>
+                    <a href={`mailto:${msg.email}?subject=Re: ${encodeURIComponent(msg.subject || 'Your Inquiry')}`}
+                      className="p-1.5 rounded hover:bg-primary/10 text-on-surface-variant hover:text-primary transition-colors" title="Reply">
+                      <Mail size={13} />
+                    </a>
+                    <button onClick={() => handleMarkResolved(msg.id, !msg.is_replied)}
+                      className={`p-1.5 rounded hover:bg-green-50 transition-colors ${msg.is_replied ? 'text-green-600' : 'text-on-surface-variant hover:text-green-600'}`} title="Toggle resolved">
+                      <CheckCircle size={13} />
+                    </button>
+                    <button onClick={() => handleDelete(msg.id)}
+                      className="p-1.5 rounded hover:bg-red-50 text-on-surface-variant hover:text-red-500 transition-colors" title="Delete">
+                      <Trash2 size={13} />
+                    </button>
+                  </div>
+                </div>
+              </div>
+            ))}
+          </div>
+        )}
+      </div>
+
+      {/* ── Email Queue Stats ──────────────────────────────────────────── */}
       <div>
         <p className="text-xs font-semibold text-on-surface-variant uppercase tracking-widest mb-3">📧 Email Queue</p>
         <div className="grid grid-cols-2 sm:grid-cols-4 gap-4">
           {loading ? Array.from({ length: 4 }).map((_, i) => <Skeleton key={i} className="h-24" />) : (
             <>
-              <StatCard label="Pending"    value={emailStats?.pending    ?? 0} icon={Clock}        color="text-yellow-600" />
-              <StatCard label="Sent Today" value={emailStats?.sent       ?? 0} icon={Send}         color="text-green-600"  />
-              <StatCard label="Failed"     value={emailStats?.failed     ?? 0} icon={XCircle}      color="text-red-500"    />
-              <StatCard label="Total"      value={emailStats?.total      ?? 0} icon={Mail}         color="text-blue-600"   />
+              <StatCard label="Pending"    value={emailStats?.pending ?? 0} icon={Clock}       color="text-yellow-600" />
+              <StatCard label="Sent"       value={emailStats?.sent    ?? 0} icon={Send}        color="text-green-600"  />
+              <StatCard label="Failed"     value={emailStats?.failed  ?? 0} icon={XCircle}     color="text-red-500"    />
+              <StatCard label="Total"      value={emailStats?.total   ?? 0} icon={Mail}        color="text-blue-600"   />
             </>
           )}
         </div>
       </div>
 
-      {/* KPI Row — Scheduler */}
-      <div>
-        <p className="text-xs font-semibold text-on-surface-variant uppercase tracking-widest mb-3">⏰ Scheduled Reminders</p>
-        <div className="grid grid-cols-2 sm:grid-cols-4 gap-4">
-          {loading ? Array.from({ length: 4 }).map((_, i) => <Skeleton key={i} className="h-24" />) : (
-            <>
-              <StatCard label="Pending"   value={schedStats?.pending   ?? 0} icon={Clock}       color="text-yellow-600" />
-              <StatCard label="Sent"      value={schedStats?.sent      ?? 0} icon={CheckCircle} color="text-green-600"  />
-              <StatCard label="Failed"    value={schedStats?.failed    ?? 0} icon={AlertTriangle}color="text-red-500"   />
-              <StatCard label="Cancelled" value={schedStats?.cancelled ?? 0} icon={XCircle}     color="text-gray-500"   />
-            </>
-          )}
-        </div>
-      </div>
-
-      {/* Main grid */}
-      <div className="grid grid-cols-1 lg:grid-cols-3 gap-5">
-
-        {/* Email Queue */}
-        <div className="lg:col-span-2 bg-white rounded-xl border border-outline-variant overflow-hidden">
-          <div className="flex items-center justify-between px-5 py-4 border-b border-outline-variant">
-            <div className="flex items-center gap-2">
-              <Mail size={15} className="text-primary" />
-              <h2 className="font-semibold text-sm text-on-surface">Recent Email Queue</h2>
-            </div>
-            <Link href="/admin/communications/email-queue"
-              className="text-xs text-primary hover:underline flex items-center gap-0.5">
-              View all <ChevronRight size={11} />
-            </Link>
+      {/* ── Recent Email Queue Table ───────────────────────────────────── */}
+      <div className="bg-white rounded-xl border border-outline-variant overflow-hidden">
+        <div className="flex items-center justify-between px-5 py-4 border-b border-outline-variant">
+          <div className="flex items-center gap-2">
+            <Mail size={15} className="text-primary" />
+            <h2 className="font-semibold text-sm text-on-surface">Recent Email Queue</h2>
           </div>
-          <div className="overflow-x-auto">
-            <table className="w-full text-sm">
-              <thead className="bg-surface">
-                <tr>
-                  {['To', 'Template', 'Priority', 'Status', 'Action'].map(h => (
-                    <th key={h} className="px-4 py-2.5 text-left text-xs font-semibold text-on-surface-variant">{h}</th>
-                  ))}
-                </tr>
-              </thead>
-              <tbody className="divide-y divide-outline-variant/50">
-                {loading
-                  ? <tr><td colSpan={5} className="px-4 py-8 text-center text-on-surface-variant">Loading…</td></tr>
-                  : emailQueue.length === 0
-                    ? <tr><td colSpan={5} className="px-4 py-8 text-center text-sm text-on-surface-variant">No emails in queue</td></tr>
-                    : emailQueue.map(e => (
-                        <tr key={e.id} className="hover:bg-surface/40">
-                          <td className="px-4 py-2.5 max-w-[140px]">
-                            <p className="truncate text-xs font-medium">{e.to_name ?? e.to_email}</p>
-                            <p className="truncate text-[10px] text-on-surface-variant">{e.to_email}</p>
-                          </td>
-                          <td className="px-4 py-2.5 text-xs text-on-surface-variant font-mono">{e.template_id}</td>
-                          <td className="px-4 py-2.5 text-xs">{e.priority}</td>
-                          <td className="px-4 py-2.5">{statusBadge(e.status)}</td>
-                          <td className="px-4 py-2.5">
-                            {e.status === 'failed' && (
-                              <button onClick={() => handleRetry(e.id)}
-                                className="flex items-center gap-1 text-xs text-primary hover:underline">
-                                <RotateCcw size={10} /> Retry
-                              </button>
-                            )}
-                          </td>
-                        </tr>
-                      ))
-                }
-              </tbody>
-            </table>
-          </div>
+          <Link href="/admin/communications/email-queue"
+            className="text-xs text-primary hover:underline flex items-center gap-0.5">
+            View all <ChevronRight size={11} />
+          </Link>
         </div>
-
-        {/* Right column */}
-        <div className="space-y-4">
-          {/* Upcoming Reminders */}
-          <div className="bg-white rounded-xl border border-outline-variant overflow-hidden">
-            <div className="flex items-center gap-2 px-4 py-3 border-b border-outline-variant">
-              <Calendar size={14} className="text-primary" />
-              <h2 className="font-semibold text-sm text-on-surface">Upcoming Reminders</h2>
-            </div>
-            <div className="divide-y divide-outline-variant/40 max-h-56 overflow-y-auto">
+        <div className="overflow-x-auto">
+          <table className="w-full text-sm">
+            <thead className="bg-surface">
+              <tr>
+                {['To', 'Template', 'Status', 'Action'].map(h => (
+                  <th key={h} className="px-4 py-2.5 text-left text-xs font-semibold text-on-surface-variant">{h}</th>
+                ))}
+              </tr>
+            </thead>
+            <tbody className="divide-y divide-outline-variant/50">
               {loading
-                ? <div className="p-4"><Skeleton className="h-20" /></div>
-                : upcoming.length === 0
-                  ? <div className="py-8 text-center text-sm text-on-surface-variant">No upcoming reminders</div>
-                  : upcoming.map(r => (
-                      <div key={r.id} className="px-4 py-3">
-                        <p className="text-xs font-medium text-on-surface truncate">{r.reminder_type?.replace('_', ' ')}</p>
-                        <p className="text-[10px] text-on-surface-variant mt-0.5">
-                          {new Date(r.scheduled_at).toLocaleString('en-IN', { day: '2-digit', month: 'short', hour: '2-digit', minute: '2-digit' })}
-                        </p>
-                        <div className="flex items-center gap-1 mt-1">
-                          {(r.channels ?? []).map((c: string) => (
-                            <span key={c} className="text-[9px] bg-surface border border-outline-variant rounded px-1 py-0.5">{c}</span>
-                          ))}
-                        </div>
-                      </div>
+                ? <tr><td colSpan={4} className="px-4 py-8 text-center text-on-surface-variant">Loading…</td></tr>
+                : emailQueue.length === 0
+                  ? <tr><td colSpan={4} className="px-4 py-8 text-center text-sm text-on-surface-variant">No emails in queue</td></tr>
+                  : emailQueue.map(e => (
+                      <tr key={e.id} className="hover:bg-surface/40">
+                        <td className="px-4 py-2.5 max-w-[160px]">
+                          <p className="truncate text-xs font-medium">{e.to_name ?? e.to_email}</p>
+                          <p className="truncate text-[10px] text-on-surface-variant">{e.to_email}</p>
+                        </td>
+                        <td className="px-4 py-2.5 text-xs text-on-surface-variant font-mono">{e.template_id}</td>
+                        <td className="px-4 py-2.5">{statusBadge(e.status)}</td>
+                        <td className="px-4 py-2.5">
+                          {e.status === 'failed' && (
+                            <button onClick={() => handleRetry(e.id)}
+                              className="flex items-center gap-1 text-xs text-primary hover:underline">
+                              <RotateCcw size={10} /> Retry
+                            </button>
+                          )}
+                        </td>
+                      </tr>
                     ))
               }
-            </div>
-          </div>
-
-          {/* Automation Logs */}
-          <div className="bg-white rounded-xl border border-outline-variant overflow-hidden">
-            <div className="flex items-center gap-2 px-4 py-3 border-b border-outline-variant">
-              <Activity size={14} className="text-primary" />
-              <h2 className="font-semibold text-sm text-on-surface">Recent Automations</h2>
-            </div>
-            <div className="divide-y divide-outline-variant/40 max-h-64 overflow-y-auto">
-              {loading
-                ? <div className="p-4"><Skeleton className="h-20" /></div>
-                : automLogs.length === 0
-                  ? <div className="py-8 text-center text-sm text-on-surface-variant">No automations yet</div>
-                  : automLogs.map(l => (
-                      <div key={l.id} className="px-4 py-3">
-                        <div className="flex items-center justify-between gap-2">
-                          <p className="text-xs font-medium text-on-surface truncate">{l.trigger_event?.replace(/_/g, ' ')}</p>
-                          {statusBadge(l.status)}
-                        </div>
-                        <div className="flex items-center gap-2 mt-1">
-                          <p className="text-[10px] text-on-surface-variant">{l.duration_ms}ms</p>
-                          <p className="text-[10px] text-on-surface-variant">
-                            {new Date(l.created_at).toLocaleTimeString('en-IN', { hour: '2-digit', minute: '2-digit' })}
-                          </p>
-                        </div>
-                      </div>
-                    ))
-              }
-            </div>
-          </div>
+            </tbody>
+          </table>
         </div>
       </div>
 
       {/* Activity Feed */}
-      <ActivityFeedWidget limit={20} />
+      <ActivityFeedWidget limit={10} />
 
-      {/* Quick Links */}
-      <div className="bg-white rounded-xl border border-outline-variant p-5">
-        <p className="font-semibold text-on-surface mb-4">Quick Actions</p>
-        <div className="flex flex-wrap gap-2">
-          {[
-            { label: 'Email Queue',        href: '/admin/communications/email-queue' },
-            { label: 'Activity Feed',      href: '/admin/communications/activity-feed' },
-            { label: 'All Notifications',  href: '/admin/notifications' },
-            { label: 'Booking Analytics',  href: '/admin/analytics/bookings' },
-            { label: 'Revenue Reports',    href: '/admin/reports' },
-            { label: 'Global Search',      href: '/admin/search' },
-          ].map(a => (
-            <Link key={a.label} href={a.href}
-              className="px-3 py-1.5 text-sm bg-surface border border-outline-variant rounded-lg hover:bg-primary hover:text-white hover:border-primary transition-colors">
-              {a.label}
-            </Link>
-          ))}
-        </div>
-      </div>
+      {/* Modal */}
+      {selectedMsg && (
+        <MessageModal
+          msg={selectedMsg}
+          onClose={() => setSelectedMsg(null)}
+          onMarkRead={handleMarkRead}
+          onMarkResolved={handleMarkResolved}
+          onDelete={handleDelete}
+        />
+      )}
     </div>
   );
 }
