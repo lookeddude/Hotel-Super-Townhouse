@@ -3,7 +3,7 @@
 import { useState, useEffect, useCallback, useRef } from 'react';
 import Link from 'next/link';
 import Image from 'next/image';
-import { Search, MapPin, Star, ArrowRight, ChevronLeft, ChevronRight } from 'lucide-react';
+import { Search, MapPin, Star, ArrowRight } from 'lucide-react';
 import { ROUTES } from '@/constants/routes';
 import { SITE_CONFIG } from '@/constants/siteConfig';
 import { createClient } from '@supabase/supabase-js';
@@ -144,21 +144,7 @@ export function HeroSection() {
         </div>
       )}
 
-      {/* ── Prev / Next arrows ── */}
-      {slides.length > 1 && (
-        <>
-          <button onClick={prev}
-            className="absolute left-3 md:left-5 top-1/2 -translate-y-1/2 z-20 w-9 h-9 md:w-11 md:h-11 bg-black/30 hover:bg-black/55 text-white rounded-full flex items-center justify-center backdrop-blur-sm transition-all"
-            aria-label="Previous slide">
-            <ChevronLeft size={18} />
-          </button>
-          <button onClick={next}
-            className="absolute right-3 md:right-5 top-1/2 -translate-y-1/2 z-20 w-9 h-9 md:w-11 md:h-11 bg-black/30 hover:bg-black/55 text-white rounded-full flex items-center justify-center backdrop-blur-sm transition-all"
-            aria-label="Next slide">
-            <ChevronRight size={18} />
-          </button>
-        </>
-      )}
+
 
       {/* ── Dot indicators ── */}
       {slides.length > 1 && (
