@@ -12,7 +12,7 @@ import { ActivityFeedWidget } from '@/components/notifications/ActivityFeed';
 import {
   Bell, Mail, Activity, Clock, RefreshCw, CheckCircle, XCircle,
   AlertTriangle, RotateCcw, ChevronRight, Send, MessageSquare,
-  Phone, Trash2, Eye, MailOpen, User, Calendar,
+  Phone, Trash2, Eye, MailOpen, User, Calendar, MessageCircle,
 } from 'lucide-react';
 import { toast } from 'sonner';
 
@@ -60,6 +60,17 @@ function MessageModal({ msg, onClose, onMarkRead, onMarkResolved, onDelete }: {
   onMarkResolved: (id: string, val: boolean) => void;
   onDelete: (id: string) => void;
 }) {
+  // Helper: clean phone for WhatsApp (remove spaces, dashes, +)
+  const waNumber = (num: string) => num.replace(/[^0-9]/g, '');
+
+  // Gmail compose URL
+  const gmailUrl = `https://mail.google.com/mail/?view=cm&to=${encodeURIComponent(msg.email)}&su=${encodeURIComponent('Re: ' + (msg.subject || 'Your Inquiry'))}&body=${encodeURIComponent(`Hi ${msg.full_name},\n\n`)}`;
+
+  // WhatsApp URL
+  const waUrl = msg.whatsapp
+    ? `https://wa.me/${waNumber(msg.whatsapp)}?text=${encodeURIComponent(`Hi ${msg.full_name}, thank you for contacting Super Townhouse! Regarding your inquiry: "${msg.subject || 'General Inquiry'}" — `)}`
+    : null;
+
   return (
     <div className="fixed inset-0 bg-black/40 z-50 flex items-center justify-center p-4" onClick={onClose}>
       <div className="bg-white rounded-2xl shadow-2xl w-full max-w-lg p-6" onClick={e => e.stopPropagation()}>
@@ -85,16 +96,24 @@ function MessageModal({ msg, onClose, onMarkRead, onMarkResolved, onDelete }: {
         </div>
 
         {/* Meta */}
-        <p className="text-xs text-on-surface-variant mb-5">
-          Received: {new Date(msg.created_at).toLocaleString('en-IN', { day: '2-digit', month: 'short', year: 'numeric', hour: '2-digit', minute: '2-digit' })}
-        </p>
+        <div className="bg-surface rounded-lg px-4 py-2 mb-5 text-xs text-on-surface-variant space-y-1">
+          <p>📅 Received: {new Date(msg.created_at).toLocaleString('en-IN', { day: '2-digit', month: 'short', year: 'numeric', hour: '2-digit', minute: '2-digit' })}</p>
+          {msg.phone    && <p>📞 Phone: <a href={`tel:${msg.phone}`} className="text-primary">{msg.phone}</a></p>}
+          {msg.whatsapp && <p>💬 WhatsApp: <a href={`https://wa.me/${waNumber(msg.whatsapp)}`} target="_blank" rel="noopener noreferrer" className="text-green-600">{msg.whatsapp}</a></p>}
+        </div>
 
         {/* Actions */}
         <div className="flex flex-wrap gap-2">
-          <a href={`mailto:${msg.email}?subject=Re: ${encodeURIComponent(msg.subject || 'Your Inquiry')}&body=Hi ${encodeURIComponent(msg.full_name)},%0A%0A`}
+          <a href={gmailUrl} target="_blank" rel="noopener noreferrer"
             className="flex items-center gap-1.5 px-3 py-2 bg-primary text-white text-sm rounded-lg hover:opacity-90">
-            <Mail size={13} /> Reply via Email
+            <Mail size={13} /> Reply via Gmail
           </a>
+          {waUrl && (
+            <a href={waUrl} target="_blank" rel="noopener noreferrer"
+              className="flex items-center gap-1.5 px-3 py-2 bg-green-500 text-white text-sm rounded-lg hover:opacity-90">
+              <MessageCircle size={13} /> Reply on WhatsApp
+            </a>
+          )}
           {msg.phone && (
             <a href={`tel:${msg.phone}`}
               className="flex items-center gap-1.5 px-3 py-2 border border-outline-variant text-sm rounded-lg hover:bg-surface">
@@ -299,7 +318,11 @@ export default function CommunicationsPage() {
                     )}
                     {msg.is_replied && statusBadge('replied')}
                   </div>
-                  <p className="text-xs text-on-surface-variant truncate">{msg.email} {msg.phone && `· ${msg.phone}`}</p>
+                  <p className="text-xs text-on-surface-variant truncate">
+                    {msg.email}
+                    {msg.phone    && ` · 📞 ${msg.phone}`}
+                    {msg.whatsapp && ` · 💬 ${msg.whatsapp}`}
+                  </p>
                   <p className="text-sm text-on-surface-variant truncate mt-0.5">
                     <span className="font-medium text-on-surface">{msg.subject || 'General Inquiry'}</span> — {msg.message}
                   </p>
@@ -311,10 +334,18 @@ export default function CommunicationsPage() {
                     {new Date(msg.created_at).toLocaleDateString('en-IN', { day: '2-digit', month: 'short', hour: '2-digit', minute: '2-digit' })}
                   </p>
                   <div className="flex gap-1" onClick={e => e.stopPropagation()}>
-                    <a href={`mailto:${msg.email}?subject=Re: ${encodeURIComponent(msg.subject || 'Your Inquiry')}`}
-                      className="p-1.5 rounded hover:bg-primary/10 text-on-surface-variant hover:text-primary transition-colors" title="Reply">
+                    <a href={`https://mail.google.com/mail/?view=cm&to=${encodeURIComponent(msg.email)}&su=${encodeURIComponent('Re: ' + (msg.subject || 'Your Inquiry'))}&body=${encodeURIComponent('Hi ' + msg.full_name + ',\n\n')}`}
+                      target="_blank" rel="noopener noreferrer"
+                      className="p-1.5 rounded hover:bg-primary/10 text-on-surface-variant hover:text-primary transition-colors" title="Reply via Gmail">
                       <Mail size={13} />
                     </a>
+                    {msg.whatsapp && (
+                      <a href={`https://wa.me/${msg.whatsapp.replace(/[^0-9]/g,'')}?text=${encodeURIComponent('Hi ' + msg.full_name + ', thank you for contacting Super Townhouse! ')}`}
+                        target="_blank" rel="noopener noreferrer"
+                        className="p-1.5 rounded hover:bg-green-50 text-on-surface-variant hover:text-green-600 transition-colors" title="Reply on WhatsApp">
+                        <MessageCircle size={13} />
+                      </a>
+                    )}
                     <button onClick={() => handleMarkResolved(msg.id, !msg.is_replied)}
                       className={`p-1.5 rounded hover:bg-green-50 transition-colors ${msg.is_replied ? 'text-green-600' : 'text-on-surface-variant hover:text-green-600'}`} title="Toggle resolved">
                       <CheckCircle size={13} />
