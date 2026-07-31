@@ -143,7 +143,7 @@ export default async function ContactPage() {
               ) : (
                 <div className="h-full flex flex-col items-center justify-center text-on-surface-variant gap-3">
                   <MapPin size={32} className="text-primary" />
-                  <p className="text-sm">Whitefield, Bengaluru</p>
+                  <p className="text-sm text-center">CA, Plot 87, near Aster Hospital,<br/>Sadara Mangala Industrial Area, Bengaluru 560048</p>
                   <a href={SITE_CONFIG.location.googleMapsUrl} target="_blank" rel="noopener noreferrer" className="text-primary text-sm underline">
                     Open in Google Maps ↗
                   </a>

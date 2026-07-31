@@ -55,5 +55,10 @@ export async function submitContactForm(
   client: Client,
   data: { full_name: string; email: string; phone?: string; subject: string; message: string }
 ) {
-  return client.from('contact_messages').insert(data).select().single();
+  // Do NOT use .select().single() after insert — anon users have no SELECT policy
+  const { error } = await client.from('contact_messages').insert({
+    ...data,
+    source: 'website',
+  });
+  return { error };
 }
