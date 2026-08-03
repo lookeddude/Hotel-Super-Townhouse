@@ -61,51 +61,57 @@ export default function AdminSettingsPage() {
 
 function StaffTab() {
   const { supabase } = useSupabase();
-  const { user } = useAuth();          // ← current logged-in user
+  const { user } = useAuth();
   const currentUserId = user?.id;
-  const [userRoles, setUserRoles] = useState<any[]>([]);
-  const [isLoading, setIsLoading] = useState(true);
-  const [showInvite, setShowInvite] = useState(false);
-  const [inviteForm, setInviteForm] = useState({ email: '', name: '', role: 'reception' });
-  const [isSaving, setIsSaving] = useState(false);
+  const [userRoles, setUserRoles]       = useState<any[]>([]);
+  const [invitations, setInvitations]   = useState<any[]>([]);
+  const [isLoading, setIsLoading]       = useState(true);
+  const [showInvite, setShowInvite]     = useState(false);
+  const [inviteForm, setInviteForm]     = useState({ email: '', name: '', role: 'reception' });
+  const [isSaving, setIsSaving]         = useState(false);
 
   const load = useCallback(async () => {
     setIsLoading(true);
     try {
       const db = supabase as any;
 
-      // Step 1: fetch all user_roles rows
-      const { data: urRows, error: urErr } = await db
+      // ── Active staff ──────────────────────────────────────────
+      const { data: urRows } = await db
         .from('user_roles')
         .select('id, user_id, role_id, assigned_at')
         .order('assigned_at', { ascending: false });
 
-      if (urErr) { console.error('user_roles fetch error:', urErr); setIsLoading(false); return; }
-      if (!urRows?.length) { setUserRoles([]); setIsLoading(false); return; }
-
-      // Step 2: fetch all roles
       const { data: rolesRows } = await db.from('roles').select('id, name');
 
-      // Step 3: fetch profiles for those user IDs
-      const userIds = urRows.map((ur: any) => ur.user_id);
-      const { data: profileRows } = await db
-        .from('profiles')
-        .select('id, full_name, email, is_active, avatar_url')
-        .in('id', userIds);
+      const userIds = (urRows ?? []).map((ur: any) => ur.user_id);
+      const { data: profileRows } = userIds.length
+        ? await db.from('profiles').select('id, full_name, email, is_active, avatar_url').in('id', userIds)
+        : { data: [] };
 
-      // Merge everything client-side
-      const merged = urRows.map((ur: any) => ({
-        id:           ur.id,
-        role_id:      ur.role_id,
-        assigned_at:  ur.assigned_at,
+      const merged = (urRows ?? []).map((ur: any) => ({
+        id:          ur.id,
+        role_id:     ur.role_id,
+        assigned_at: ur.assigned_at,
         profile:  (profileRows ?? []).find((p: any) => p.id === ur.user_id) ?? null,
         roleName: (rolesRows   ?? []).find((r: any) => r.id === ur.role_id)?.name ?? 'unknown',
       })).filter((ur: any) => ur.roleName !== 'customer' && ur.profile);
 
       setUserRoles(merged);
-    } catch (e) {
-      console.error('Staff load error:', e);
-    }
+
+      // ── Pending invitations ───────────────────────────────────
+      const { data: invRows } = await db
+        .from('staff_invitations')
+        .select('id, email, name, role_id, created_at, status')
+        .eq('status', 'pending')
+        .order('created_at', { ascending: false });
+
+      const enrichedInv = (invRows ?? []).map((inv: any) => ({
+        ...inv,
+        roleName: (rolesRows ?? []).find((r: any) => r.id === inv.role_id)?.name ?? 'unknown',
+      }));
+      setInvitations(enrichedInv);
+
+    } catch (e) { console.error('Staff load error:', e); }
     setIsLoading(false);
   }, [supabase]);
 
@@ -139,49 +145,74 @@ function StaffTab() {
     load();
   };
 
+  const handleInvite = async () => {
+    if (!inviteForm.email || !inviteForm.name) { toast.error('Name and email required'); return; }
+    setIsSaving(true);
+    const db = supabase as any;
+    // Get role ID
+    const { data: roleData } = await db.from('roles').select('id').eq('name', inviteForm.role).single();
+    if (!roleData) { toast.error('Role not found'); setIsSaving(false); return; }
+    // Save invitation to DB
+    const { error } = await db.from('staff_invitations').insert({
+      email:      inviteForm.email.toLowerCase().trim(),
+      name:       inviteForm.name.trim(),
+      role_id:    roleData.id,
+      invited_by: currentUserId,
+      status:     'pending',
+    });
+    if (error) {
+      toast.error('Failed to save invitation: ' + error.message);
+    } else {
+      toast.success(`✅ Invitation saved! When ${inviteForm.name} registers with this email, they will automatically get the ${inviteForm.role} role.`);
+      setInviteForm({ email: '', name: '', role: 'reception' });
+      setShowInvite(false);
+      load();
+    }
+    setIsSaving(false);
+  };
+
+  const handleCancelInvitation = async (id: string) => {
+    const db = supabase as any;
+    await db.from('staff_invitations').update({ status: 'cancelled' }).eq('id', id);
+    toast.success('Invitation cancelled');
+    load();
+  };
+
   return (
-    <div className="space-y-4">
+    <div className="space-y-6">
       <div className="flex items-center justify-between">
-        <p className="text-sm text-on-surface-variant">{userRoles.length} staff members</p>
+        <p className="text-sm text-on-surface-variant">{userRoles.length} active staff members</p>
         <button onClick={() => setShowInvite(!showInvite)} className="flex items-center gap-2 px-4 py-2 bg-primary text-white text-sm font-semibold rounded-lg">
-          <Plus size={14} />Invite Staff
+          <Plus size={14} />{showInvite ? 'Close' : 'Invite Staff'}
         </button>
       </div>
 
       {showInvite && (
         <div className="bg-white rounded-lg border border-primary/30 p-5 space-y-4">
-          <h3 className="font-semibold text-sm">Invite New Staff Member</h3>
+          <div>
+            <h3 className="font-semibold text-sm text-on-surface">Pre-assign Role by Email</h3>
+            <p className="text-xs text-on-surface-variant mt-0.5">When this person registers with this email, they will automatically get the assigned role.</p>
+          </div>
           <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
             <div>
               <label className="block text-xs font-medium mb-1">Full Name</label>
-              <input value={inviteForm.name} onChange={(e) => setInviteForm(p => ({ ...p, name: e.target.value }))} className="w-full px-3 py-2 border border-outline-variant rounded-lg text-sm" placeholder="Staff name" />
+              <input value={inviteForm.name} onChange={(e) => setInviteForm(p => ({ ...p, name: e.target.value }))} className="w-full px-3 py-2 border border-outline-variant rounded-lg text-sm" placeholder="e.g. Ravi Kumar" />
             </div>
             <div>
-              <label className="block text-xs font-medium mb-1">Email</label>
-              <input type="email" value={inviteForm.email} onChange={(e) => setInviteForm(p => ({ ...p, email: e.target.value }))} className="w-full px-3 py-2 border border-outline-variant rounded-lg text-sm" />
+              <label className="block text-xs font-medium mb-1">Their Email</label>
+              <input type="email" value={inviteForm.email} onChange={(e) => setInviteForm(p => ({ ...p, email: e.target.value }))} className="w-full px-3 py-2 border border-outline-variant rounded-lg text-sm" placeholder="ravi@gmail.com" />
             </div>
             <div>
-              <label className="block text-xs font-medium mb-1">Role</label>
+              <label className="block text-xs font-medium mb-1">Assign Role</label>
               <select value={inviteForm.role} onChange={(e) => setInviteForm(p => ({ ...p, role: e.target.value }))} className="w-full px-3 py-2 border border-outline-variant rounded-lg text-sm">
                 {ROLE_OPTIONS.map(r => <option key={r} value={r}>{r.replace('_', ' ')}</option>)}
               </select>
             </div>
           </div>
           <div className="flex gap-2">
-            <button
-              disabled={isSaving}
-              onClick={async () => {
-                if (!inviteForm.email || !inviteForm.name) { toast.error('Name and email required'); return; }
-                setIsSaving(true);
-                // Use admin API to invite — this requires service role key (server-side only)
-                toast.info('Staff invitation sent via email (requires server-side admin API)');
-                setInviteForm({ email: '', name: '', role: 'reception' });
-                setShowInvite(false);
-                setIsSaving(false);
-              }}
-              className="px-4 py-2 bg-primary text-white text-sm rounded-lg disabled:opacity-60"
-            >
-              {isSaving ? 'Sending…' : 'Send Invite'}
+            <button disabled={isSaving} onClick={handleInvite}
+              className="px-4 py-2 bg-primary text-white text-sm rounded-lg disabled:opacity-60 flex items-center gap-2">
+              {isSaving ? <><Loader2 size={13} className="animate-spin" /> Saving…</> : <><Shield size={13} /> Save Invitation</>}
             </button>
             <button onClick={() => setShowInvite(false)} className="px-4 py-2 border border-outline-variant text-sm rounded-lg">Cancel</button>
           </div>
@@ -262,6 +293,41 @@ function StaffTab() {
           </table>
         )}
       </div>
+
+      {/* ── Pending Invitations ── */}
+      {invitations.length > 0 && (
+        <div>
+          <h3 className="font-semibold text-sm text-on-surface mb-3 flex items-center gap-2">
+            <span className="w-2 h-2 rounded-full bg-yellow-400 inline-block" />
+            Pending Invitations ({invitations.length})
+          </h3>
+          <div className="bg-white rounded-lg border border-outline-variant overflow-hidden divide-y divide-outline-variant/40">
+            {invitations.map((inv) => (
+              <div key={inv.id} className="flex items-center justify-between px-4 py-3 flex-wrap gap-2">
+                <div>
+                  <p className="text-sm font-medium text-on-surface">{inv.name}</p>
+                  <p className="text-xs text-on-surface-variant">{inv.email}</p>
+                </div>
+                <div className="flex items-center gap-3 flex-wrap">
+                  <span className={`text-xs font-medium px-2 py-0.5 rounded-full capitalize ${ROLE_COLORS[inv.roleName] ?? 'bg-gray-100 text-gray-600'}`}>
+                    {inv.roleName?.replace('_', ' ')}
+                  </span>
+                  <span className="text-xs text-yellow-700 bg-yellow-50 px-2 py-0.5 rounded-full border border-yellow-200">
+                    ⏳ Waiting to register
+                  </span>
+                  <button onClick={() => handleCancelInvitation(inv.id)}
+                    className="text-xs text-red-500 hover:text-red-700 hover:underline">
+                    Cancel
+                  </button>
+                </div>
+              </div>
+            ))}
+          </div>
+          <p className="text-xs text-on-surface-variant mt-2">
+            💡 Ask them to register at: <span className="font-mono bg-surface px-1 rounded">hotel-townhouse.vercel.app/register</span> — their role will be assigned automatically!
+          </p>
+        </div>
+      )}
     </div>
   );
 }
