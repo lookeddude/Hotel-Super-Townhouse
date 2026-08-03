@@ -18,11 +18,18 @@ import type { Database } from '@/types/database';
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
-export type UserRole = 'customer' | 'reception' | 'manager' | 'admin' | 'super_admin';
+export type UserRole =
+  | 'customer'
+  | 'reception' | 'manager' | 'admin' | 'super_admin'
+  | 'housekeeping' | 'maintenance' | 'chef' | 'security';
 
-export type AdminRole = 'reception' | 'manager' | 'admin' | 'super_admin';
+export type AdminRole = 'reception' | 'manager' | 'admin' | 'super_admin'
+  | 'housekeeping' | 'maintenance' | 'chef' | 'security';
 
-export const ADMIN_ROLES: AdminRole[] = ['reception', 'manager', 'admin', 'super_admin'];
+export const ADMIN_ROLES: AdminRole[] = [
+  'super_admin', 'admin', 'manager', 'reception',
+  'housekeeping', 'maintenance', 'chef', 'security',
+];
 
 export interface AuthUser {
   id: string;
@@ -86,7 +93,12 @@ export async function getUserRole(client: Client, userId?: string): Promise<User
     .map((r) => (r.roles as { name: string } | null)?.name)
     .filter(Boolean) as string[];
 
-  const priority: UserRole[] = ['super_admin', 'admin', 'manager', 'reception', 'customer'];
+  // Priority: super_admin > admin > manager > reception > housekeeping > maintenance > chef > security > customer
+  const priority: UserRole[] = [
+    'super_admin', 'admin', 'manager', 'reception',
+    'housekeeping', 'maintenance', 'chef', 'security',
+    'customer',
+  ];
   for (const role of priority) {
     if (roleNames.includes(role)) return role;
   }
