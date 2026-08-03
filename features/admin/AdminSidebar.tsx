@@ -6,6 +6,7 @@ import {
   LayoutDashboard, CalendarDays, BedDouble, Image,
   Star, Tag, CreditCard, BarChart3, Settings, Globe,
   LogOut, ChevronRight, TrendingUp, Search, Users, Mail, Activity, Bell, X,
+  Wrench, SprayCan,
 } from 'lucide-react';
 import { Logo } from '@/components/shared/Logo';
 import { ROUTES } from '@/constants/routes';
@@ -13,54 +14,77 @@ import { cn } from '@/lib/utils';
 import { useAuth } from '@/providers/AuthProvider';
 import { toast } from 'sonner';
 
-const NAV_SECTIONS = [
+// Roles that have full admin access
+const FULL_ACCESS   = ['super_admin', 'admin', 'manager'];
+const FRONT_DESK    = [...FULL_ACCESS, 'reception'];
+const HOUSEKEEPING  = ['super_admin', 'admin', 'manager', 'housekeeping'];
+const MAINTENANCE   = ['super_admin', 'admin', 'manager', 'maintenance'];
+
+interface NavItem { label: string; href: string; icon: any; allowedRoles?: string[]; }
+interface NavSection { label: string; allowedRoles?: string[]; items: NavItem[]; }
+
+const NAV_SECTIONS: NavSection[] = [
   {
     label: 'Operations',
+    allowedRoles: FRONT_DESK,
     items: [
-      { label: 'Dashboard', href: ROUTES.adminDashboard, icon: LayoutDashboard },
-      { label: 'Bookings', href: ROUTES.adminBookings, icon: CalendarDays },
-      { label: 'Calendar', href: ROUTES.adminCalendar, icon: CalendarDays },
+      { label: 'Dashboard', href: ROUTES.adminDashboard, icon: LayoutDashboard, allowedRoles: FRONT_DESK },
+      { label: 'Bookings',  href: ROUTES.adminBookings,  icon: CalendarDays,    allowedRoles: FRONT_DESK },
+      { label: 'Calendar',  href: ROUTES.adminCalendar,  icon: CalendarDays,    allowedRoles: FRONT_DESK },
     ],
   },
   {
     label: 'Hotel',
+    allowedRoles: FRONT_DESK,
     items: [
-      { label: 'Rooms', href: ROUTES.adminRooms, icon: BedDouble },
-      { label: 'Gallery', href: ROUTES.adminGallery, icon: Image },
-      { label: 'Reviews', href: ROUTES.adminReviews, icon: Star },
-      { label: 'Offers', href: ROUTES.adminOffers, icon: Tag },
+      { label: 'Rooms',    href: ROUTES.adminRooms,    icon: BedDouble, allowedRoles: FRONT_DESK },
+      { label: 'Gallery',  href: ROUTES.adminGallery,  icon: Image,     allowedRoles: FULL_ACCESS },
+      { label: 'Reviews',  href: ROUTES.adminReviews,  icon: Star,      allowedRoles: FULL_ACCESS },
+      { label: 'Offers',   href: ROUTES.adminOffers,   icon: Tag,       allowedRoles: FULL_ACCESS },
+    ],
+  },
+  {
+    label: 'Staff Tasks',
+    allowedRoles: [...HOUSEKEEPING, ...MAINTENANCE],
+    items: [
+      { label: '🧹 Housekeeping', href: '/admin/housekeeping', icon: SprayCan, allowedRoles: HOUSEKEEPING },
+      { label: '🔧 Maintenance',  href: '/admin/maintenance',  icon: Wrench,   allowedRoles: MAINTENANCE },
     ],
   },
   {
     label: 'Analytics',
+    allowedRoles: FULL_ACCESS,
     items: [
-      { label: 'Bookings',   href: ROUTES.adminAnalyticsBookings, icon: TrendingUp },
-      { label: 'Rooms',      href: ROUTES.adminAnalyticsRooms,    icon: BedDouble },
-      { label: 'Guests',     href: ROUTES.adminAnalyticsGuests,   icon: Users },
+      { label: 'Bookings', href: ROUTES.adminAnalyticsBookings, icon: TrendingUp, allowedRoles: FULL_ACCESS },
+      { label: 'Rooms',    href: ROUTES.adminAnalyticsRooms,    icon: BedDouble,  allowedRoles: FULL_ACCESS },
+      { label: 'Guests',   href: ROUTES.adminAnalyticsGuests,   icon: Users,      allowedRoles: FULL_ACCESS },
     ],
   },
   {
     label: 'Finance & Reports',
+    allowedRoles: FULL_ACCESS,
     items: [
-      { label: 'Payments', href: ROUTES.adminPayments, icon: CreditCard },
-      { label: 'Reports',  href: ROUTES.adminReports,  icon: BarChart3 },
+      { label: 'Payments', href: ROUTES.adminPayments, icon: CreditCard, allowedRoles: FULL_ACCESS },
+      { label: 'Reports',  href: ROUTES.adminReports,  icon: BarChart3,  allowedRoles: FULL_ACCESS },
     ],
   },
   {
     label: 'Communications',
+    allowedRoles: FRONT_DESK,
     items: [
-      { label: 'Comm. Center',  href: ROUTES.adminCommunications, icon: Mail },
-      { label: 'Email Queue',   href: ROUTES.adminEmailQueue,     icon: Mail },
-      { label: 'Activity Feed', href: ROUTES.adminActivityFeed,   icon: Activity },
-      { label: 'Notifications', href: ROUTES.adminNotifications,  icon: Bell },
+      { label: 'Comm. Center',  href: ROUTES.adminCommunications, icon: Mail,     allowedRoles: FULL_ACCESS },
+      { label: 'Email Queue',   href: ROUTES.adminEmailQueue,     icon: Mail,     allowedRoles: FULL_ACCESS },
+      { label: 'Activity Feed', href: ROUTES.adminActivityFeed,   icon: Activity, allowedRoles: FULL_ACCESS },
+      { label: 'Notifications', href: ROUTES.adminNotifications,  icon: Bell,     allowedRoles: FRONT_DESK },
     ],
   },
   {
     label: 'System',
+    allowedRoles: FULL_ACCESS,
     items: [
-      { label: 'Global Search', href: ROUTES.adminSearch,   icon: Search },
-      { label: 'Website CMS',  href: ROUTES.adminCms,      icon: Globe },
-      { label: 'Settings',     href: ROUTES.adminSettings, icon: Settings },
+      { label: 'Global Search', href: ROUTES.adminSearch,   icon: Search,   allowedRoles: FULL_ACCESS },
+      { label: 'Website CMS',   href: ROUTES.adminCms,      icon: Globe,    allowedRoles: FULL_ACCESS },
+      { label: 'Settings',      href: ROUTES.adminSettings, icon: Settings, allowedRoles: ['super_admin', 'admin'] },
     ],
   },
 ];
@@ -84,6 +108,15 @@ export function AdminSidebar({ onClose }: { onClose?: () => void }) {
   const roleLabel = role
     ? role.charAt(0).toUpperCase() + role.slice(1).replace('_', ' ')
     : 'Staff';
+
+  // Filter sections and items based on user's role
+  const visibleSections = NAV_SECTIONS
+    .filter(s => !s.allowedRoles || (role && s.allowedRoles.includes(role)))
+    .map(s => ({
+      ...s,
+      items: s.items.filter(i => !i.allowedRoles || (role && i.allowedRoles.includes(role))),
+    }))
+    .filter(s => s.items.length > 0);
 
   return (
     <div className="flex flex-col h-full">
@@ -118,7 +151,7 @@ export function AdminSidebar({ onClose }: { onClose?: () => void }) {
 
       {/* Nav sections */}
       <nav className="flex-1 p-4 overflow-y-auto space-y-6 hide-scrollbar" aria-label="Admin navigation">
-        {NAV_SECTIONS.map((section) => (
+        {visibleSections.map((section) => (
           <div key={section.label}>
             <p className="px-3 mb-2 text-caption text-white/40 uppercase tracking-widest">
               {section.label}

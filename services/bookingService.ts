@@ -15,6 +15,7 @@
  */
 
 import type { SupabaseClient } from '@supabase/supabase-js';
+import { notifyRoleUsers, notifyStaffUsers } from '@/services/notificationService';
 
 type Client = SupabaseClient<any>;
 
@@ -249,6 +250,30 @@ export async function checkOutBooking(client: Client, bookingId: string, roomId:
       status: 'available',
       cleaning_status: 'dirty',
     }).eq('id', roomId);
+
+    // Fetch room number for notification
+    const { data: room } = await db.from('rooms').select('room_number').eq('id', roomId).single();
+    const roomLabel = room?.room_number ? `Room ${room.room_number}` : 'A room';
+
+    // 🧹 Notify ALL housekeeping staff to clean the room
+    await notifyRoleUsers(client, 'housekeeping', {
+      type:      'staff_assignment',
+      title:     `🧹 Room Ready to Clean`,
+      body:      `${roomLabel} needs cleaning — guest has checked out.`,
+      priority:  'high',
+      actionUrl: '/admin/housekeeping',
+      metadata:  { roomId, bookingId },
+    });
+
+    // 📋 Notify reception/manager/admin/super_admin of checkout
+    await notifyStaffUsers(client, {
+      type:      'booking_confirmed',
+      title:     `✅ Guest Checked Out`,
+      body:      `Guest checked out from ${roomLabel}. Room is now available.`,
+      priority:  'normal',
+      actionUrl: `/admin/bookings/${bookingId}`,
+      metadata:  { roomId, bookingId },
+    });
   }
   return result;
 }

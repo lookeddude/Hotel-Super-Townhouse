@@ -288,3 +288,40 @@ export async function getAllNotificationsAdmin(
     return [];
   }
 }
+
+// ─── Notify all users with a specific role ────────────────────────────────────
+export async function notifyRoleUsers(
+  supabase: any,
+  roleName: string,
+  payload: Omit<CreateNotificationPayload, 'userId'>
+): Promise<void> {
+  try {
+    const { data: users } = await (supabase as any).rpc('get_user_ids_by_role', { role_name: roleName });
+    if (!users?.length) return;
+    await Promise.all(
+      users.map((row: { user_id: string }) =>
+        createNotification(supabase, { ...payload, userId: row.user_id })
+      )
+    );
+  } catch (err) {
+    console.error('[notificationService] notifyRoleUsers:', err);
+  }
+}
+
+// ─── Notify all front-desk staff (reception + manager + admin + super_admin) ──
+export async function notifyStaffUsers(
+  supabase: any,
+  payload: Omit<CreateNotificationPayload, 'userId'>
+): Promise<void> {
+  try {
+    const { data: users } = await (supabase as any).rpc('get_staff_user_ids');
+    if (!users?.length) return;
+    await Promise.all(
+      users.map((row: { user_id: string }) =>
+        createNotification(supabase, { ...payload, userId: row.user_id })
+      )
+    );
+  } catch (err) {
+    console.error('[notificationService] notifyStaffUsers:', err);
+  }
+}

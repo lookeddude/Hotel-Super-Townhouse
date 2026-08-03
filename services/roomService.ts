@@ -14,6 +14,7 @@
  */
 
 import type { SupabaseClient } from '@supabase/supabase-js';
+import { notifyRoleUsers } from '@/services/notificationService';
 
 type Client = SupabaseClient<any>;
 
@@ -110,7 +111,20 @@ export async function createRoom(client: Client, data: Record<string, any>) {
 }
 
 export async function updateRoom(client: Client, id: string, data: Record<string, any>) {
-  return client.from('rooms').update(data).eq('id', id).select().single();
+  const result = await client.from('rooms').update(data).eq('id', id).select().single();
+  // 🔧 If room set to maintenance — notify all maintenance staff
+  if (!result.error && data.status === 'maintenance') {
+    const roomNum = result.data?.room_number ?? id;
+    await notifyRoleUsers(client, 'maintenance', {
+      type:     'room_maintenance',
+      title:    `🔧 Maintenance Required`,
+      body:     `Room ${roomNum} has been flagged for maintenance. Please inspect and fix.`,
+      priority: 'high',
+      actionUrl: '/admin/maintenance',
+      metadata: { roomId: id },
+    });
+  }
+  return result;
 }
 
 export async function deleteRoom(client: Client, id: string) {
