@@ -26,8 +26,13 @@ const ADMIN_PREFIXES = ['/admin'];
 /** Routes that authenticated users should NOT see */
 const AUTH_ONLY = ['/login', '/register', '/forgot-password'];
 
-/** Admin roles */
-const ADMIN_ROLES = ['reception', 'manager', 'admin', 'super_admin'];
+/** All roles that can enter the /admin panel */
+const ADMIN_ROLES = ['reception', 'manager', 'admin', 'super_admin', 'housekeeping', 'maintenance', 'chef', 'security'];
+
+/** Roles restricted to specific pages only */
+const HOUSEKEEPING_ONLY_ROLES = ['housekeeping'];
+const MAINTENANCE_ONLY_ROLES  = ['maintenance'];
+const NO_ADMIN_ROLES          = ['chef', 'security'];  // panel access but redirect to notifications
 
 // ─── Middleware ───────────────────────────────────────────────────────────────
 
@@ -71,8 +76,35 @@ export async function proxy(request: NextRequest) {
         .map((r) => (r.roles as { name: string } | null)?.name)
         .filter(Boolean) as string[];
 
+      // Not a staff member at all → back to customer dashboard
       if (!roleNames.some((r) => ADMIN_ROLES.includes(r))) {
         return NextResponse.redirect(new URL('/dashboard', request.url));
+      }
+
+      // 🧹 Housekeeping: only allowed on /admin/housekeeping and /admin/notifications
+      if (roleNames.some(r => HOUSEKEEPING_ONLY_ROLES.includes(r)) &&
+          !roleNames.some(r => ['admin','super_admin','manager','reception'].includes(r))) {
+        const allowed = ['/admin/housekeeping', '/admin/notifications'];
+        if (!allowed.some(p => pathname.startsWith(p))) {
+          return NextResponse.redirect(new URL('/admin/housekeeping', request.url));
+        }
+      }
+
+      // 🔧 Maintenance: only allowed on /admin/maintenance and /admin/notifications
+      if (roleNames.some(r => MAINTENANCE_ONLY_ROLES.includes(r)) &&
+          !roleNames.some(r => ['admin','super_admin','manager','reception'].includes(r))) {
+        const allowed = ['/admin/maintenance', '/admin/notifications'];
+        if (!allowed.some(p => pathname.startsWith(p))) {
+          return NextResponse.redirect(new URL('/admin/maintenance', request.url));
+        }
+      }
+
+      // 👨‍🍳🛡️ Chef / Security: only /admin/notifications (no task page yet)
+      if (roleNames.some(r => NO_ADMIN_ROLES.includes(r)) &&
+          !roleNames.some(r => ['admin','super_admin','manager','reception','housekeeping','maintenance'].includes(r))) {
+        if (!pathname.startsWith('/admin/notifications')) {
+          return NextResponse.redirect(new URL('/admin/notifications', request.url));
+        }
       }
     } catch {
       return NextResponse.redirect(new URL('/login', request.url));
