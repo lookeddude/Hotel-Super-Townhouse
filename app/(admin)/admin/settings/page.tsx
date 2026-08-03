@@ -163,15 +163,18 @@ function StaffTab() {
       .single();
 
     if (existingProfile) {
-      // ✅ Already registered — assign role immediately!
-      const { error: roleError } = await db.from('user_roles')
-        .upsert({ user_id: existingProfile.id, role_id: roleData.id, assigned_by: currentUserId },
-                 { onConflict: 'user_id' });
+      // ✅ Already registered — delete old role then insert new one
+      await db.from('user_roles').delete().eq('user_id', existingProfile.id);
+      const { error: roleError } = await db.from('user_roles').insert({
+        user_id:     existingProfile.id,
+        role_id:     roleData.id,
+        assigned_by: currentUserId,
+      });
 
       if (roleError) {
         toast.error('Failed to assign role: ' + roleError.message);
       } else {
-        toast.success(`✅ Role assigned immediately! ${existingProfile.full_name} is already registered — they now have the "${inviteForm.role}" role.`);
+        toast.success(`✅ Role assigned! ${existingProfile.full_name} now has the "${inviteForm.role}" role.`);
         setInviteForm({ email: '', name: '', role: 'reception' });
         setShowInvite(false);
         load();
