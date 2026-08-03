@@ -61,8 +61,9 @@ export default function AdminSettingsPage() {
 
 function StaffTab() {
   const { supabase } = useSupabase();
-  const { user } = useAuth();
-  const currentUserId = user?.id;
+  const { user, role: currentRole } = useAuth();   // role = 'admin' | 'super_admin' etc.
+  const currentUserId  = user?.id;
+  const isSuperAdmin   = currentRole === 'super_admin';  // only super_admin can manage super_admins
   const [userRoles, setUserRoles]       = useState<any[]>([]);
   const [invitations, setInvitations]   = useState<any[]>([]);
   const [isLoading, setIsLoading]       = useState(true);
@@ -117,10 +118,15 @@ function StaffTab() {
 
   useEffect(() => { load(); }, [load]);
 
-  const handleRoleChange = async (userRoleId: string, newRoleName: string, profileId: string) => {
-    // 🔒 Prevent changing own role
+  const handleRoleChange = async (userRoleId: string, newRoleName: string, profileId: string, targetRoleName: string) => {
+    // 🔒 Cannot change own role
     if (profileId === currentUserId) {
       toast.error('You cannot change your own role — ask another super admin.');
+      return;
+    }
+    // 🔒 Only super_admin can change or set super_admin role
+    if (!isSuperAdmin && (targetRoleName === 'super_admin' || newRoleName === 'super_admin')) {
+      toast.error('Only a super admin can manage super admin roles.');
       return;
     }
     const db = supabase as any;
@@ -234,7 +240,8 @@ function StaffTab() {
             <div>
               <label className="block text-xs font-medium mb-1">Assign Role</label>
               <select value={inviteForm.role} onChange={(e) => setInviteForm(p => ({ ...p, role: e.target.value }))} className="w-full px-3 py-2 border border-outline-variant rounded-lg text-sm">
-                {ROLE_OPTIONS.map(r => <option key={r} value={r}>{r.replace('_', ' ')}</option>)}
+                {/* 🔒 Only super_admin can assign super_admin role */}
+                {ROLE_OPTIONS.filter(r => isSuperAdmin || r !== 'super_admin').map(r => <option key={r} value={r}>{r.replace('_', ' ')}</option>)}
               </select>
             </div>
           </div>
@@ -264,23 +271,26 @@ function StaffTab() {
             </thead>
             <tbody className="divide-y divide-outline-variant">
               {userRoles.map((ur) => {
-                const profile  = ur.profile;                   // already flat from new query
+                const profile  = ur.profile;
                 const roleName = ur.roleName;
                 if (!profile) return null;
-                const isSelf = profile.id === currentUserId;
+                const isSelf            = profile.id === currentUserId;
+                const isTargetSuperAdmin = roleName === 'super_admin';
+                // 🔒 Lock row if: it's yourself OR you're not super_admin but target is super_admin
+                const isLocked = isSelf || (!isSuperAdmin && isTargetSuperAdmin);
                 return (
-                  <tr key={ur.id} className={`hover:bg-surface/50 transition-colors ${isSelf ? 'bg-yellow-50/60' : ''}`}>
+                  <tr key={ur.id} className={`hover:bg-surface/50 transition-colors ${isSelf ? 'bg-yellow-50/60' : isTargetSuperAdmin && !isSuperAdmin ? 'bg-red-50/30' : ''}`}>
                     <td className="px-4 py-3 font-medium text-on-surface">
                       <div className="flex items-center gap-2">
                         {profile.full_name ?? '—'}
-                        {isSelf && (
-                          <span className="text-[10px] bg-primary text-white px-1.5 py-0.5 rounded font-semibold">YOU</span>
-                        )}
+                        {isSelf && <span className="text-[10px] bg-primary text-white px-1.5 py-0.5 rounded font-semibold">YOU</span>}
+                        {isTargetSuperAdmin && !isSelf && <span className="text-[10px] bg-red-500 text-white px-1.5 py-0.5 rounded font-semibold">OWNER</span>}
                       </div>
                     </td>
                     <td className="px-4 py-3 text-xs text-on-surface-variant">{profile.email}</td>
                     <td className="px-4 py-3">
-                      {isSelf ? (
+                      {isLocked ? (
+                        // 🔒 Locked — show role as badge only
                         <div className="flex items-center gap-1.5 text-xs text-on-surface-variant">
                           <Lock size={11} />
                           <span className={`font-medium px-2 py-0.5 rounded-full ${ROLE_COLORS[roleName ?? ''] ?? 'bg-gray-100 text-gray-600'}`}>
@@ -290,10 +300,13 @@ function StaffTab() {
                       ) : (
                         <select
                           value={roleName ?? ''}
-                          onChange={(e) => handleRoleChange(ur.id, e.target.value, profile.id)}
+                          onChange={(e) => handleRoleChange(ur.id, e.target.value, profile.id, roleName)}
                           className={`text-xs font-medium px-2 py-1 rounded-full border-0 cursor-pointer ${ROLE_COLORS[roleName ?? ''] ?? 'bg-gray-100 text-gray-600'}`}
                         >
-                          {ROLE_OPTIONS.map(r => <option key={r} value={r}>{r.replace('_', ' ')}</option>)}
+                          {/* 🔒 Only super_admin can assign super_admin role */}
+                          {ROLE_OPTIONS.filter(r => isSuperAdmin || r !== 'super_admin').map(r =>
+                            <option key={r} value={r}>{r.replace('_', ' ')}</option>
+                          )}
                         </select>
                       )}
                     </td>
@@ -303,7 +316,7 @@ function StaffTab() {
                       </span>
                     </td>
                     <td className="px-4 py-3">
-                      {isSelf ? (
+                      {isLocked ? (
                         <span className="text-xs text-on-surface-variant italic">Protected</span>
                       ) : (
                         <button
