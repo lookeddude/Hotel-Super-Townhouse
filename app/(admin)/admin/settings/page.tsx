@@ -71,16 +71,41 @@ function StaffTab() {
 
   const load = useCallback(async () => {
     setIsLoading(true);
-    // user_roles: id, user_id, role_id (FK to roles table), assigned_by, assigned_at
-    const db = supabase as any;
-    const { data } = await db
-      .from('user_roles')
-      .select(`id, role_id, assigned_at, profiles:user_id(id, full_name, email, is_active, avatar_url), roles:role_id(id, name)`);
-    // Filter out customer roles client-side
-    setUserRoles((data ?? []).filter((ur: any) => {
-      const roleName = Array.isArray(ur.roles) ? ur.roles[0]?.name : ur.roles?.name;
-      return roleName !== 'customer';
-    }));
+    try {
+      const db = supabase as any;
+
+      // Step 1: fetch all user_roles rows
+      const { data: urRows, error: urErr } = await db
+        .from('user_roles')
+        .select('id, user_id, role_id, assigned_at')
+        .order('assigned_at', { ascending: false });
+
+      if (urErr) { console.error('user_roles fetch error:', urErr); setIsLoading(false); return; }
+      if (!urRows?.length) { setUserRoles([]); setIsLoading(false); return; }
+
+      // Step 2: fetch all roles
+      const { data: rolesRows } = await db.from('roles').select('id, name');
+
+      // Step 3: fetch profiles for those user IDs
+      const userIds = urRows.map((ur: any) => ur.user_id);
+      const { data: profileRows } = await db
+        .from('profiles')
+        .select('id, full_name, email, is_active, avatar_url')
+        .in('id', userIds);
+
+      // Merge everything client-side
+      const merged = urRows.map((ur: any) => ({
+        id:           ur.id,
+        role_id:      ur.role_id,
+        assigned_at:  ur.assigned_at,
+        profile:  (profileRows ?? []).find((p: any) => p.id === ur.user_id) ?? null,
+        roleName: (rolesRows   ?? []).find((r: any) => r.id === ur.role_id)?.name ?? 'unknown',
+      })).filter((ur: any) => ur.roleName !== 'customer' && ur.profile);
+
+      setUserRoles(merged);
+    } catch (e) {
+      console.error('Staff load error:', e);
+    }
     setIsLoading(false);
   }, [supabase]);
 
@@ -179,10 +204,10 @@ function StaffTab() {
             </thead>
             <tbody className="divide-y divide-outline-variant">
               {userRoles.map((ur) => {
-                const profile  = Array.isArray(ur.profiles) ? ur.profiles[0] : ur.profiles;
-                const roleName = Array.isArray(ur.roles) ? ur.roles[0]?.name : ur.roles?.name;
+                const profile  = ur.profile;                   // already flat from new query
+                const roleName = ur.roleName;
                 if (!profile) return null;
-                const isSelf = profile.id === currentUserId;   // 🔒 is this the current user?
+                const isSelf = profile.id === currentUserId;
                 return (
                   <tr key={ur.id} className={`hover:bg-surface/50 transition-colors ${isSelf ? 'bg-yellow-50/60' : ''}`}>
                     <td className="px-4 py-3 font-medium text-on-surface">
@@ -196,7 +221,6 @@ function StaffTab() {
                     <td className="px-4 py-3 text-xs text-on-surface-variant">{profile.email}</td>
                     <td className="px-4 py-3">
                       {isSelf ? (
-                        /* 🔒 Locked — cannot change own role */
                         <div className="flex items-center gap-1.5 text-xs text-on-surface-variant">
                           <Lock size={11} />
                           <span className={`font-medium px-2 py-0.5 rounded-full ${ROLE_COLORS[roleName ?? ''] ?? 'bg-gray-100 text-gray-600'}`}>
@@ -220,7 +244,6 @@ function StaffTab() {
                     </td>
                     <td className="px-4 py-3">
                       {isSelf ? (
-                        /* 🔒 Cannot disable own account */
                         <span className="text-xs text-on-surface-variant italic">Protected</span>
                       ) : (
                         <button
