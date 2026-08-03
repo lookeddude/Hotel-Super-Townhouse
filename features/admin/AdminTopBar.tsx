@@ -30,6 +30,8 @@ function getPageTitle(pathname: string): string {
     '/admin/communications/email-queue':  'Email Queue',
     '/admin/communications/activity-feed':'Activity Feed',
     '/admin/notifications':               'All Notifications',
+    '/admin/housekeeping':                 '🧹 Housekeeping',
+    '/admin/maintenance':                  '🔧 Maintenance',
   };
   return map[pathname] ?? 'Admin';
 }
