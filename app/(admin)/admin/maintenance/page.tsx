@@ -4,7 +4,6 @@ import { useEffect, useState, useCallback } from 'react';
 import { Wrench, CheckCircle2, Loader2, RefreshCw, AlertTriangle, BedDouble } from 'lucide-react';
 import { useSupabase } from '@/providers/SupabaseProvider';
 import { useAuth } from '@/providers/AuthProvider';
-import { notifyStaffUsers } from '@/services/notificationService';
 import { toast } from 'sonner';
 
 const STATUS_CONFIG: Record<string, { label: string; color: string; bg: string }> = {
@@ -48,15 +47,15 @@ export default function MaintenancePage() {
     toast.success(`Room ${roomNumber} marked as fixed and available!`);
     setNotes(p => { const n = { ...p }; delete n[roomId]; return n; });
 
-    // 📣 Notify admin/manager/reception that room is fixed
+    // 📣 Notify via SECURITY DEFINER RPC (bypasses notifications RLS)
     const staffName = profile?.fullName ?? 'Maintenance staff';
-    await notifyStaffUsers(supabase, {
-      type:      'staff_assignment',
-      title:     `✅ Room ${roomNumber} — Maintenance Complete`,
-      body:      `${staffName} has fixed Room ${roomNumber}. Room is now available.${note ? ` Notes: ${note}` : ''}`,
-      priority:  'normal',
-      actionUrl: '/admin/rooms',
-      metadata:  { roomId, status: 'available' },
+    await db.rpc('notify_staff_completion', {
+      p_type:       'staff_assignment',
+      p_title:      `✅ Room ${roomNumber} — Maintenance Complete`,
+      p_body:       `${staffName} fixed Room ${roomNumber}. Room is now available.${note ? ` Notes: ${note}` : ''}`,
+      p_action_url: '/admin/rooms',
+      p_priority:   'normal',
+      p_metadata:   { roomId, status: 'available' },
     });
     load();
   };
@@ -67,15 +66,15 @@ export default function MaintenancePage() {
     if (error) { toast.error(`Failed to update: ${error.message}`); return; }
     toast.success(`Room ${roomNumber} marked as out of service`);
 
-    // 📣 Notify admin/manager/reception
+    // 📣 Notify via SECURITY DEFINER RPC (bypasses notifications RLS)
     const staffName = profile?.fullName ?? 'Maintenance staff';
-    await notifyStaffUsers(supabase, {
-      type:      'admin_alert',
-      title:     `🚨 Room ${roomNumber} — Out of Service`,
-      body:      `${staffName} has marked Room ${roomNumber} as Out of Service. Manual review required.`,
-      priority:  'high',
-      actionUrl: '/admin/rooms',
-      metadata:  { roomId, status: 'out_of_service' },
+    await db.rpc('notify_staff_completion', {
+      p_type:       'admin_alert',
+      p_title:      `🚨 Room ${roomNumber} — Out of Service`,
+      p_body:       `${staffName} marked Room ${roomNumber} as Out of Service. Manual review required.`,
+      p_action_url: '/admin/rooms',
+      p_priority:   'high',
+      p_metadata:   { roomId, status: 'out_of_service' },
     });
     load();
   };

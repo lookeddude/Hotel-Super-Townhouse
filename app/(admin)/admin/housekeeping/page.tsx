@@ -4,7 +4,6 @@ import { useEffect, useState, useCallback } from 'react';
 import { CheckCircle2, Clock, Loader2, RefreshCw, BedDouble } from 'lucide-react';
 import { useSupabase } from '@/providers/SupabaseProvider';
 import { useAuth } from '@/providers/AuthProvider';
-import { notifyStaffUsers } from '@/services/notificationService';
 import { toast } from 'sonner';
 
 type CleaningStatus = 'dirty' | 'in_progress' | 'clean' | 'inspected';
@@ -23,18 +22,19 @@ export default function HousekeepingPage() {
   const [isLoading, setIsLoading] = useState(true);
   const [filter, setFilter]       = useState<CleaningStatus | 'all'>('dirty');
 
+  // Always fetch ALL rooms — filter is applied client-side so KPI counts stay correct
   const load = useCallback(async () => {
     setIsLoading(true);
     const db = supabase as any;
-    let q = db.from('rooms')
+    const { data, error } = await db
+      .from('rooms')
       .select('id, room_number, floor, wing, cleaning_status, status, room_types(name)')
       .is('deleted_at', null)
       .order('room_number', { ascending: true });
-    if (filter !== 'all') q = q.eq('cleaning_status', filter);
-    const { data } = await q;
+    if (error) console.error('[housekeeping] load error:', error.message);
     setRooms(data ?? []);
     setIsLoading(false);
-  }, [supabase, filter]);
+  }, [supabase]);
 
   useEffect(() => { load(); }, [load]);
 
@@ -51,26 +51,28 @@ export default function HousekeepingPage() {
     }
     toast.success(`Room marked as ${STATUS_CONFIG[status].label}`);
 
-    // 📣 Notify admin/manager/reception when room is fully clean or inspected
+    // 📣 Notify via SECURITY DEFINER RPC (bypasses notifications RLS)
     if (status === 'clean' || status === 'inspected') {
       const staffName = profile?.fullName ?? 'Housekeeping staff';
       const label     = status === 'inspected' ? 'Inspected ✓ — Ready for Guests' : 'Cleaned';
-      await notifyStaffUsers(supabase, {
-        type:      'staff_assignment',
-        title:     `✅ Room ${roomNumber ?? roomId} ${label}`,
-        body:      `${staffName} has marked Room ${roomNumber ?? roomId} as ${label.toLowerCase()}.`,
-        priority:  'normal',
-        actionUrl: '/admin/rooms',
-        metadata:  { roomId, status },
+      await db.rpc('notify_staff_completion', {
+        p_type:       'staff_assignment',
+        p_title:      `✅ Room ${roomNumber ?? roomId} ${label}`,
+        p_body:       `${staffName} marked Room ${roomNumber ?? roomId} as ${label.toLowerCase()}.`,
+        p_action_url: '/admin/rooms',
+        p_priority:   'normal',
+        p_metadata:   { roomId, status },
       });
     }
     load();
   };
 
+  // KPI counts from full dataset; display list filtered client-side
   const counts = rooms.reduce((acc: any, r: any) => {
     acc[r.cleaning_status] = (acc[r.cleaning_status] ?? 0) + 1;
     return acc;
   }, {});
+  const displayRooms = filter === 'all' ? rooms : rooms.filter(r => r.cleaning_status === filter);
 
   return (
     <div className="space-y-6">
@@ -101,7 +103,7 @@ export default function HousekeepingPage() {
         <div className="flex items-center justify-center py-20">
           <Loader2 size={28} className="animate-spin text-primary" />
         </div>
-      ) : rooms.length === 0 ? (
+      ) : displayRooms.length === 0 ? (
         <div className="bg-white rounded-xl border border-outline-variant py-20 text-center">
           <CheckCircle2 size={40} className="mx-auto text-green-500 mb-3" />
           <p className="font-semibold text-on-surface">All rooms are clean!</p>
@@ -109,7 +111,7 @@ export default function HousekeepingPage() {
         </div>
       ) : (
         <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4">
-          {rooms.map((room) => {
+          {displayRooms.map((room) => {
             const cs = (room.cleaning_status ?? 'dirty') as CleaningStatus;
             const cfg = STATUS_CONFIG[cs];
             return (
