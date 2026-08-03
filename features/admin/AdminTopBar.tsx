@@ -24,21 +24,25 @@ function getPageTitle(pathname: string): string {
     '/admin/settings':                     'Settings',
     '/admin/search':                       'Global Search',
     '/admin/analytics/bookings':           'Booking Analytics',
-    '/admin/analytics/rooms':              'Room Performance',
-    '/admin/analytics/guests':             'Guest Analytics',
-    '/admin/communications':               'Communication Center',
-    '/admin/communications/email-queue':   'Email Queue',
-    '/admin/communications/activity-feed': 'Activity Feed',
+    '/admin/analytics/rooms':             'Room Performance',
+    '/admin/analytics/guests':            'Guest Analytics',
+    '/admin/communications':              'Communication Center',
+    '/admin/communications/email-queue':  'Email Queue',
+    '/admin/communications/activity-feed':'Activity Feed',
     '/admin/notifications':               'All Notifications',
   };
   return map[pathname] ?? 'Admin';
 }
 
-export function AdminTopBar() {
-  const pathname = usePathname();
-  const router = useRouter();
+interface AdminTopBarProps {
+  onMenuClick: () => void;
+}
+
+export function AdminTopBar({ onMenuClick }: AdminTopBarProps) {
+  const pathname  = usePathname();
+  const router    = useRouter();
   const { user, profile, signOut } = useAuth();
-  const [menuOpen, setMenuOpen] = useState(false);
+  const [menuOpen, setMenuOpen]    = useState(false);
   const menuRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
@@ -62,23 +66,27 @@ export function AdminTopBar() {
 
   return (
     <header
-      className="h-16 bg-white border-b border-outline-variant flex items-center px-6 gap-4"
+      className="h-16 bg-white border-b border-outline-variant flex items-center px-4 md:px-6 gap-3 sticky top-0 z-30"
       role="banner"
     >
-      {/* Mobile toggle */}
-      <button className="lg:hidden p-2 rounded-lg hover:bg-surface transition-colors" aria-label="Open menu">
-        <Menu size={20} className="text-on-surface-variant" />
+      {/* ── Hamburger — mobile only ── */}
+      <button
+        onClick={onMenuClick}
+        className="lg:hidden p-2 rounded-lg hover:bg-surface transition-colors flex-shrink-0"
+        aria-label="Open navigation menu"
+      >
+        <Menu size={22} className="text-on-surface" />
       </button>
 
       {/* Title + Breadcrumb */}
       <div className="flex-1 min-w-0">
-        <h1 className="font-heading font-bold text-base text-on-surface leading-none">
+        <h1 className="font-heading font-bold text-base text-on-surface leading-none truncate">
           {getPageTitle(pathname)}
         </h1>
-        <Breadcrumb className="mt-0.5" />
+        <Breadcrumb className="mt-0.5 hidden sm:flex" />
       </div>
 
-      {/* Search */}
+      {/* Search — hidden on small mobile */}
       <div className="hidden md:flex items-center gap-2 bg-surface rounded-lg px-3 py-2 w-56">
         <Search size={15} className="text-on-surface-variant flex-shrink-0" aria-hidden="true" />
         <input
@@ -89,15 +97,15 @@ export function AdminTopBar() {
         />
       </div>
 
-      {/* Notifications — live bell with unread count */}
+      {/* Notification bell */}
       <NotificationBell />
 
-      {/* Avatar + dropdown */}
-      <div ref={menuRef} className="relative">
+      {/* Avatar dropdown */}
+      <div ref={menuRef} className="relative flex-shrink-0">
         <button
           onClick={() => setMenuOpen(!menuOpen)}
           className="w-8 h-8 rounded-full bg-inverse-surface flex items-center justify-center text-white text-sm font-semibold hover:opacity-80 transition-opacity"
-          aria-label="Admin menu"
+          aria-label="Admin account menu"
           aria-expanded={menuOpen}
         >
           {initials}

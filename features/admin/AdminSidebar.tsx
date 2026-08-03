@@ -5,7 +5,7 @@ import { usePathname, useRouter } from 'next/navigation';
 import {
   LayoutDashboard, CalendarDays, BedDouble, Image,
   Star, Tag, CreditCard, BarChart3, Settings, Globe,
-  LogOut, ChevronRight, TrendingUp, Search, Users, Mail, Activity, Bell,
+  LogOut, ChevronRight, TrendingUp, Search, Users, Mail, Activity, Bell, X,
 } from 'lucide-react';
 import { Logo } from '@/components/shared/Logo';
 import { ROUTES } from '@/constants/routes';
@@ -65,7 +65,7 @@ const NAV_SECTIONS = [
   },
 ];
 
-export function AdminSidebar() {
+export function AdminSidebar({ onClose }: { onClose?: () => void }) {
   const pathname = usePathname();
   const router = useRouter();
   const { profile, user, role, signOut } = useAuth();
@@ -87,10 +87,22 @@ export function AdminSidebar() {
 
   return (
     <div className="flex flex-col h-full">
-      {/* Logo + Admin badge */}
-      <div className="p-6 border-b border-white/10">
-        <Logo variant="white" size="sm" />
-        <p className="text-caption text-white/40 mt-2 ml-10">Admin Console</p>
+      {/* Logo + close button row */}
+      <div className="p-6 border-b border-white/10 flex items-center justify-between">
+        <div>
+          <Logo variant="white" size="sm" />
+          <p className="text-caption text-white/40 mt-2 ml-10">Admin Console</p>
+        </div>
+        {/* Close button — mobile only */}
+        {onClose && (
+          <button
+            onClick={onClose}
+            className="lg:hidden p-2 rounded-lg bg-white/10 hover:bg-white/20 text-white transition-colors"
+            aria-label="Close navigation"
+          >
+            <X size={18} />
+          </button>
+        )}
       </div>
 
       {/* Staff info */}
@@ -119,6 +131,7 @@ export function AdminSidebar() {
                   <li key={item.href}>
                     <Link
                       href={item.href}
+                      onClick={onClose}
                       className={cn(
                         'flex items-center gap-3 px-3 py-2.5 rounded-lg text-label-md transition-colors group',
                         isActive
