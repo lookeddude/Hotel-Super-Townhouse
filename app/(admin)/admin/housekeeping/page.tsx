@@ -1,8 +1,10 @@
 'use client';
 
 import { useEffect, useState, useCallback } from 'react';
-import { CheckCircle2, Clock, Loader2, RefreshCw, BedDouble, AlertTriangle } from 'lucide-react';
+import { CheckCircle2, Clock, Loader2, RefreshCw, BedDouble } from 'lucide-react';
 import { useSupabase } from '@/providers/SupabaseProvider';
+import { useAuth } from '@/providers/AuthProvider';
+import { notifyStaffUsers } from '@/services/notificationService';
 import { toast } from 'sonner';
 
 type CleaningStatus = 'dirty' | 'in_progress' | 'clean' | 'inspected';
@@ -16,9 +18,10 @@ const STATUS_CONFIG: Record<CleaningStatus, { label: string; color: string; bg: 
 
 export default function HousekeepingPage() {
   const { supabase } = useSupabase();
-  const [rooms, setRooms]       = useState<any[]>([]);
+  const { profile }  = useAuth();
+  const [rooms, setRooms]         = useState<any[]>([]);
   const [isLoading, setIsLoading] = useState(true);
-  const [filter, setFilter]     = useState<CleaningStatus | 'all'>('dirty');
+  const [filter, setFilter]       = useState<CleaningStatus | 'all'>('dirty');
 
   const load = useCallback(async () => {
     setIsLoading(true);
@@ -35,15 +38,32 @@ export default function HousekeepingPage() {
 
   useEffect(() => { load(); }, [load]);
 
-  const updateStatus = async (roomId: string, status: CleaningStatus) => {
+  const updateStatus = async (roomId: string, status: CleaningStatus, roomNumber?: string) => {
     const db = supabase as any;
     const updates: any = { cleaning_status: status };
     if (status === 'clean' || status === 'inspected') {
       updates.last_cleaned_at = new Date().toISOString();
     }
     const { error } = await db.from('rooms').update(updates).eq('id', roomId);
-    if (error) { toast.error('Failed to update status'); return; }
+    if (error) {
+      toast.error(`Failed to update: ${error.message}`);
+      return;
+    }
     toast.success(`Room marked as ${STATUS_CONFIG[status].label}`);
+
+    // 📣 Notify admin/manager/reception when room is fully clean or inspected
+    if (status === 'clean' || status === 'inspected') {
+      const staffName = profile?.fullName ?? 'Housekeeping staff';
+      const label     = status === 'inspected' ? 'Inspected ✓ — Ready for Guests' : 'Cleaned';
+      await notifyStaffUsers(supabase, {
+        type:      'staff_assignment',
+        title:     `✅ Room ${roomNumber ?? roomId} ${label}`,
+        body:      `${staffName} has marked Room ${roomNumber ?? roomId} as ${label.toLowerCase()}.`,
+        priority:  'normal',
+        actionUrl: '/admin/rooms',
+        metadata:  { roomId, status },
+      });
+    }
     load();
   };
 
@@ -111,19 +131,19 @@ export default function HousekeepingPage() {
                 {/* Action buttons */}
                 <div className="grid grid-cols-2 gap-2">
                   {cs === 'dirty' && (
-                    <button onClick={() => updateStatus(room.id, 'in_progress')}
+                    <button onClick={() => updateStatus(room.id, 'in_progress', room.room_number)}
                       className="col-span-2 flex items-center justify-center gap-1.5 py-2 bg-yellow-500 text-white text-xs font-semibold rounded-lg hover:bg-yellow-600 transition-colors">
                       <Clock size={13} /> Start Cleaning
                     </button>
                   )}
                   {cs === 'in_progress' && (
-                    <button onClick={() => updateStatus(room.id, 'clean')}
+                    <button onClick={() => updateStatus(room.id, 'clean', room.room_number)}
                       className="col-span-2 flex items-center justify-center gap-1.5 py-2 bg-green-600 text-white text-xs font-semibold rounded-lg hover:bg-green-700 transition-colors">
                       <CheckCircle2 size={13} /> Mark as Clean
                     </button>
                   )}
                   {cs === 'clean' && (
-                    <button onClick={() => updateStatus(room.id, 'inspected')}
+                    <button onClick={() => updateStatus(room.id, 'inspected', room.room_number)}
                       className="col-span-2 flex items-center justify-center gap-1.5 py-2 bg-blue-600 text-white text-xs font-semibold rounded-lg hover:bg-blue-700 transition-colors">
                       <CheckCircle2 size={13} /> Mark Inspected
                     </button>
@@ -132,7 +152,7 @@ export default function HousekeepingPage() {
                     <p className="col-span-2 text-center text-xs text-green-600 font-medium py-1">✓ Ready for guests</p>
                   )}
                   {cs !== 'dirty' && (
-                    <button onClick={() => updateStatus(room.id, 'dirty')}
+                    <button onClick={() => updateStatus(room.id, 'dirty', room.room_number)}
                       className="col-span-2 text-xs text-on-surface-variant hover:text-error text-center py-1 transition-colors">
                       Reset to Dirty
                     </button>

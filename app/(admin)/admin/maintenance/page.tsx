@@ -1,8 +1,10 @@
 'use client';
 
 import { useEffect, useState, useCallback } from 'react';
-import { Wrench, CheckCircle2, Loader2, RefreshCw, AlertTriangle, Clock, BedDouble } from 'lucide-react';
+import { Wrench, CheckCircle2, Loader2, RefreshCw, AlertTriangle, BedDouble } from 'lucide-react';
 import { useSupabase } from '@/providers/SupabaseProvider';
+import { useAuth } from '@/providers/AuthProvider';
+import { notifyStaffUsers } from '@/services/notificationService';
 import { toast } from 'sonner';
 
 const STATUS_CONFIG: Record<string, { label: string; color: string; bg: string }> = {
@@ -13,6 +15,7 @@ const STATUS_CONFIG: Record<string, { label: string; color: string; bg: string }
 
 export default function MaintenancePage() {
   const { supabase } = useSupabase();
+  const { profile }  = useAuth();
   const [rooms, setRooms]         = useState<any[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [filter, setFilter]       = useState<string>('maintenance');
@@ -34,23 +37,46 @@ export default function MaintenancePage() {
   useEffect(() => { load(); }, [load]);
 
   const markFixed = async (roomId: string, roomNumber: string) => {
-    const db = supabase as any;
+    const db   = supabase as any;
     const note = notes[roomId] ?? '';
     const { error } = await db.from('rooms').update({
       status:             'available',
       notes:              note || null,
       last_maintained_at: new Date().toISOString(),
     }).eq('id', roomId);
-    if (error) { toast.error('Failed to update room'); return; }
+    if (error) { toast.error(`Failed to update room: ${error.message}`); return; }
     toast.success(`Room ${roomNumber} marked as fixed and available!`);
     setNotes(p => { const n = { ...p }; delete n[roomId]; return n; });
+
+    // 📣 Notify admin/manager/reception that room is fixed
+    const staffName = profile?.fullName ?? 'Maintenance staff';
+    await notifyStaffUsers(supabase, {
+      type:      'staff_assignment',
+      title:     `✅ Room ${roomNumber} — Maintenance Complete`,
+      body:      `${staffName} has fixed Room ${roomNumber}. Room is now available.${note ? ` Notes: ${note}` : ''}`,
+      priority:  'normal',
+      actionUrl: '/admin/rooms',
+      metadata:  { roomId, status: 'available' },
+    });
     load();
   };
 
-  const markOutOfService = async (roomId: string) => {
+  const markOutOfService = async (roomId: string, roomNumber: string) => {
     const db = supabase as any;
-    await db.from('rooms').update({ status: 'out_of_service' }).eq('id', roomId);
-    toast.success('Room marked as out of service');
+    const { error } = await db.from('rooms').update({ status: 'out_of_service' }).eq('id', roomId);
+    if (error) { toast.error(`Failed to update: ${error.message}`); return; }
+    toast.success(`Room ${roomNumber} marked as out of service`);
+
+    // 📣 Notify admin/manager/reception
+    const staffName = profile?.fullName ?? 'Maintenance staff';
+    await notifyStaffUsers(supabase, {
+      type:      'admin_alert',
+      title:     `🚨 Room ${roomNumber} — Out of Service`,
+      body:      `${staffName} has marked Room ${roomNumber} as Out of Service. Manual review required.`,
+      priority:  'high',
+      actionUrl: '/admin/rooms',
+      metadata:  { roomId, status: 'out_of_service' },
+    });
     load();
   };
 
@@ -139,7 +165,7 @@ export default function MaintenancePage() {
                         className="flex items-center justify-center gap-1.5 py-2 bg-green-600 text-white text-xs font-semibold rounded-lg hover:bg-green-700 transition-colors">
                         <CheckCircle2 size={13} /> Mark Fixed
                       </button>
-                      <button onClick={() => markOutOfService(room.id)}
+                      <button onClick={() => markOutOfService(room.id, room.room_number)}
                         className="flex items-center justify-center gap-1.5 py-2 bg-red-600 text-white text-xs font-semibold rounded-lg hover:bg-red-700 transition-colors">
                         <AlertTriangle size={13} /> Out of Service
                       </button>
