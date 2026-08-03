@@ -1,8 +1,9 @@
 'use client';
 
 import { useEffect, useState, useCallback } from 'react';
-import { Save, Loader2, Users, Globe, Settings as SettingsIcon, Plus, UserX, UserCheck, Shield } from 'lucide-react';
+import { Save, Loader2, Users, Globe, Settings as SettingsIcon, Plus, UserX, UserCheck, Shield, Lock } from 'lucide-react';
 import { useSupabase } from '@/providers/SupabaseProvider';
+import { useAuth } from '@/providers/AuthProvider';
 import { getAllSEO, upsertSEO } from '@/services/cmsService';
 import { toast } from 'sonner';
 
@@ -60,6 +61,8 @@ export default function AdminSettingsPage() {
 
 function StaffTab() {
   const { supabase } = useSupabase();
+  const { user } = useAuth();          // ← current logged-in user
+  const currentUserId = user?.id;
   const [userRoles, setUserRoles] = useState<any[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [showInvite, setShowInvite] = useState(false);
@@ -83,7 +86,12 @@ function StaffTab() {
 
   useEffect(() => { load(); }, [load]);
 
-  const handleRoleChange = async (userRoleId: string, newRoleName: string) => {
+  const handleRoleChange = async (userRoleId: string, newRoleName: string, profileId: string) => {
+    // 🔒 Prevent changing own role
+    if (profileId === currentUserId) {
+      toast.error('You cannot change your own role — ask another super admin.');
+      return;
+    }
     const db = supabase as any;
     const { data: roleData } = await db.from('roles').select('id').eq('name', newRoleName).single();
     if (!roleData) { toast.error('Role not found'); return; }
@@ -94,6 +102,11 @@ function StaffTab() {
   };
 
   const handleToggleActive = async (profileId: string, isActive: boolean) => {
+    // 🔒 Prevent disabling own account
+    if (profileId === currentUserId) {
+      toast.error('You cannot disable your own account.');
+      return;
+    }
     const db = supabase as any;
     const { error } = await db.from('profiles').update({ is_active: !isActive }).eq('id', profileId);
     if (error) { toast.error('Failed to toggle status'); return; }
@@ -166,17 +179,39 @@ function StaffTab() {
             </thead>
             <tbody className="divide-y divide-outline-variant">
               {userRoles.map((ur) => {
-                const profile = Array.isArray(ur.profiles) ? ur.profiles[0] : ur.profiles;
+                const profile  = Array.isArray(ur.profiles) ? ur.profiles[0] : ur.profiles;
                 const roleName = Array.isArray(ur.roles) ? ur.roles[0]?.name : ur.roles?.name;
                 if (!profile) return null;
+                const isSelf = profile.id === currentUserId;   // 🔒 is this the current user?
                 return (
-                  <tr key={ur.id} className="hover:bg-surface/50 transition-colors">
-                    <td className="px-4 py-3 font-medium text-on-surface">{profile.full_name ?? '—'}</td>
+                  <tr key={ur.id} className={`hover:bg-surface/50 transition-colors ${isSelf ? 'bg-yellow-50/60' : ''}`}>
+                    <td className="px-4 py-3 font-medium text-on-surface">
+                      <div className="flex items-center gap-2">
+                        {profile.full_name ?? '—'}
+                        {isSelf && (
+                          <span className="text-[10px] bg-primary text-white px-1.5 py-0.5 rounded font-semibold">YOU</span>
+                        )}
+                      </div>
+                    </td>
                     <td className="px-4 py-3 text-xs text-on-surface-variant">{profile.email}</td>
                     <td className="px-4 py-3">
-                      <select value={roleName ?? ''} onChange={(e) => handleRoleChange(ur.id, e.target.value)} className={`text-xs font-medium px-2 py-1 rounded-full border-0 cursor-pointer ${ROLE_COLORS[roleName ?? ''] ?? 'bg-gray-100 text-gray-600'}`}>
-                        {ROLE_OPTIONS.map(r => <option key={r} value={r}>{r.replace('_', ' ')}</option>)}
-                      </select>
+                      {isSelf ? (
+                        /* 🔒 Locked — cannot change own role */
+                        <div className="flex items-center gap-1.5 text-xs text-on-surface-variant">
+                          <Lock size={11} />
+                          <span className={`font-medium px-2 py-0.5 rounded-full ${ROLE_COLORS[roleName ?? ''] ?? 'bg-gray-100 text-gray-600'}`}>
+                            {roleName?.replace('_', ' ')}
+                          </span>
+                        </div>
+                      ) : (
+                        <select
+                          value={roleName ?? ''}
+                          onChange={(e) => handleRoleChange(ur.id, e.target.value, profile.id)}
+                          className={`text-xs font-medium px-2 py-1 rounded-full border-0 cursor-pointer ${ROLE_COLORS[roleName ?? ''] ?? 'bg-gray-100 text-gray-600'}`}
+                        >
+                          {ROLE_OPTIONS.map(r => <option key={r} value={r}>{r.replace('_', ' ')}</option>)}
+                        </select>
+                      )}
                     </td>
                     <td className="px-4 py-3">
                       <span className={`text-xs px-2 py-0.5 rounded-full ${profile.is_active !== false ? 'bg-green-100 text-green-700' : 'bg-red-100 text-red-700'}`}>
@@ -184,9 +219,18 @@ function StaffTab() {
                       </span>
                     </td>
                     <td className="px-4 py-3">
-                      <button onClick={() => handleToggleActive(profile.id, profile.is_active !== false)} className="p-1.5 hover:bg-surface rounded text-on-surface-variant hover:text-primary" title={profile.is_active !== false ? 'Disable' : 'Enable'}>
-                        {profile.is_active !== false ? <UserX size={14} /> : <UserCheck size={14} />}
-                      </button>
+                      {isSelf ? (
+                        /* 🔒 Cannot disable own account */
+                        <span className="text-xs text-on-surface-variant italic">Protected</span>
+                      ) : (
+                        <button
+                          onClick={() => handleToggleActive(profile.id, profile.is_active !== false)}
+                          className="p-1.5 hover:bg-surface rounded text-on-surface-variant hover:text-primary"
+                          title={profile.is_active !== false ? 'Disable user' : 'Enable user'}
+                        >
+                          {profile.is_active !== false ? <UserX size={14} /> : <UserCheck size={14} />}
+                        </button>
+                      )}
                     </td>
                   </tr>
                 );
