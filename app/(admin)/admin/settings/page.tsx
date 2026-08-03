@@ -148,25 +148,51 @@ function StaffTab() {
   const handleInvite = async () => {
     if (!inviteForm.email || !inviteForm.name) { toast.error('Name and email required'); return; }
     setIsSaving(true);
-    const db = supabase as any;
-    // Get role ID
+    const db     = supabase as any;
+    const email  = inviteForm.email.toLowerCase().trim();
+
+    // Step 1: Get role ID
     const { data: roleData } = await db.from('roles').select('id').eq('name', inviteForm.role).single();
     if (!roleData) { toast.error('Role not found'); setIsSaving(false); return; }
-    // Save invitation to DB
-    const { error } = await db.from('staff_invitations').insert({
-      email:      inviteForm.email.toLowerCase().trim(),
-      name:       inviteForm.name.trim(),
-      role_id:    roleData.id,
-      invited_by: currentUserId,
-      status:     'pending',
-    });
-    if (error) {
-      toast.error('Failed to save invitation: ' + error.message);
+
+    // Step 2: Check if this email is already registered as a user
+    const { data: existingProfile } = await db
+      .from('profiles')
+      .select('id, full_name')
+      .eq('email', email)
+      .single();
+
+    if (existingProfile) {
+      // ✅ Already registered — assign role immediately!
+      const { error: roleError } = await db.from('user_roles')
+        .upsert({ user_id: existingProfile.id, role_id: roleData.id, assigned_by: currentUserId },
+                 { onConflict: 'user_id' });
+
+      if (roleError) {
+        toast.error('Failed to assign role: ' + roleError.message);
+      } else {
+        toast.success(`✅ Role assigned immediately! ${existingProfile.full_name} is already registered — they now have the "${inviteForm.role}" role.`);
+        setInviteForm({ email: '', name: '', role: 'reception' });
+        setShowInvite(false);
+        load();
+      }
     } else {
-      toast.success(`✅ Invitation saved! When ${inviteForm.name} registers with this email, they will automatically get the ${inviteForm.role} role.`);
-      setInviteForm({ email: '', name: '', role: 'reception' });
-      setShowInvite(false);
-      load();
+      // ⏳ Not registered yet — save as pending invitation
+      const { error } = await db.from('staff_invitations').insert({
+        email:      email,
+        name:       inviteForm.name.trim(),
+        role_id:    roleData.id,
+        invited_by: currentUserId,
+        status:     'pending',
+      });
+      if (error) {
+        toast.error('Failed to save invitation: ' + error.message);
+      } else {
+        toast.success(`⏳ Invitation saved! When ${inviteForm.name} registers with this email, they will automatically get the "${inviteForm.role}" role.`);
+        setInviteForm({ email: '', name: '', role: 'reception' });
+        setShowInvite(false);
+        load();
+      }
     }
     setIsSaving(false);
   };
