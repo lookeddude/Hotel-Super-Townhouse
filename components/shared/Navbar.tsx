@@ -68,7 +68,7 @@ export function Navbar() {
       .limit(1)
       .maybeSingle();
     const roleName = data?.roles?.name ?? '';
-    setIsAdmin(['admin', 'super_admin', 'staff', 'manager'].includes(roleName));
+    setIsAdmin(['super_admin', 'admin', 'manager', 'reception', 'housekeeping', 'maintenance', 'chef', 'security'].includes(roleName));
   };
 
   // Close profile dropdown on outside click
