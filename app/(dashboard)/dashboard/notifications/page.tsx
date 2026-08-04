@@ -63,11 +63,22 @@ function getIconBg(type: string) {
 export default function UserNotificationsPage() {
   const { supabase }                                          = useSupabase();
   const { user }                                              = useAuth();
-  const { notifications, unreadCount, loading, markRead, markAllRead, deleteOne, refresh } = useNotifications(50);
+  const { notifications: allNotifications, unreadCount: rawUnread, loading, markRead, markAllRead, deleteOne, refresh } = useNotifications(50);
   const [tab, setTab]           = useState<'all' | 'unread' | 'preferences'>('all');
   const [prefs, setPrefs]       = useState<any[]>([]);
   const [prefsLoading, setPrefsLoading] = useState(false);
   const [saving, setSaving]     = useState<string | null>(null);
+
+  // ⛔ Never show staff/admin-only notification types on the customer dashboard
+  const CUSTOMER_TYPES = new Set([
+    'booking_confirmed', 'booking_cancelled', 'booking_reminder',
+    'payment_received',  'payment_failed',    'refund_processed',
+    'review_request',    'checkin_reminder',  'checkout_reminder',
+    'marketing',         'system',            'admin_alert',
+    'offer_expiry',      'contact_reply',
+  ]);
+  const notifications = allNotifications.filter(n => CUSTOMER_TYPES.has(n.type));
+  const unreadCount   = notifications.filter(n => !n.is_read).length;
 
   const loadPrefs = async () => {
     if (!user?.id) return;
