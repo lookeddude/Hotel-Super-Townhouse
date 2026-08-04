@@ -4,6 +4,7 @@ import { AmenitiesSection } from '@/features/home/AmenitiesSection';
 import { createMetadata } from '@/lib/metadata';
 import { createServerClient } from '@/lib/supabase/server';
 import Link from 'next/link';
+import Image from 'next/image';
 import { BedDouble, Users, Maximize2, Star } from 'lucide-react';
 
 export const metadata: Metadata = createMetadata({
@@ -23,13 +24,27 @@ export default async function HomePage() {
     const supabase = await createServerClient();
     const db = supabase as any;
 
-    // Fetch featured room types (first 3)
+    // Fetch featured room types (first 3) — no nested image join
     const { data: rooms } = await db
       .from('room_types')
-      .select('id, name, slug, short_description, base_price, max_occupancy, size_sqft, bed_type, room_images(storage_path, alt_text, is_primary)')
+      .select('id, name, slug, short_description, base_price, max_occupancy, size_sqft, bed_type')
       .order('display_order', { ascending: true })
       .limit(3);
-    featuredRooms = rooms ?? [];
+
+    if (rooms && rooms.length > 0) {
+      // Fetch images separately to avoid RLS/FK join issues
+      const roomIds = rooms.map((r: any) => r.id);
+      const { data: images } = await db
+        .from('room_images')
+        .select('room_type_id, storage_path, alt_text, is_primary')
+        .in('room_type_id', roomIds);
+
+      // Merge images into each room
+      featuredRooms = rooms.map((r: any) => ({
+        ...r,
+        room_images: (images ?? []).filter((img: any) => img.room_type_id === r.id),
+      }));
+    }
 
     // Fetch 3 approved reviews
     const { data: reviews } = await db
@@ -66,14 +81,22 @@ export default async function HomePage() {
               {featuredRooms.map((room) => (
                 <div key={room.id} className="card-base bg-white overflow-hidden hover:shadow-md transition-shadow group">
                   {/* Room Image */}
-                  <div className="h-48 relative overflow-hidden bg-gradient-to-br from-surface to-outline-variant flex items-center justify-center">
+                  <div className="h-48 relative overflow-hidden bg-gradient-to-br from-surface to-outline-variant">
                     {(() => {
                       const imgs: any[] = room.room_images ?? [];
                       const img = imgs.find((i: any) => i.is_primary) ?? imgs[0];
-                      return img ? (
-                        <img src={img.storage_path} alt={img.alt_text ?? room.name} className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-500" />
+                      return img?.storage_path ? (
+                        <Image
+                          src={img.storage_path}
+                          alt={img.alt_text ?? room.name}
+                          fill
+                          className="object-cover group-hover:scale-105 transition-transform duration-500"
+                          sizes="(max-width: 768px) 100vw, 33vw"
+                        />
                       ) : (
-                        <BedDouble size={40} className="text-outline group-hover:scale-110 transition-transform duration-300" />
+                        <div className="w-full h-full flex items-center justify-center">
+                          <BedDouble size={40} className="text-outline group-hover:scale-110 transition-transform duration-300" />
+                        </div>
                       );
                     })()}
                   </div>
