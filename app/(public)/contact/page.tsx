@@ -130,21 +130,33 @@ export default async function ContactPage() {
 
             {/* Map */}
             <div className="h-64 bg-surface-container rounded-lg overflow-hidden border border-outline-variant">
-              {hotel?.latitude && hotel?.longitude ? (
-                <iframe
-                  title="Hotel Location"
-                  src={`https://maps.google.com/maps?q=${hotel.latitude},${hotel.longitude}&z=15&output=embed`}
-                  width="100%"
-                  height="100%"
-                  style={{ border: 0 }}
-                  allowFullScreen
-                  loading="lazy"
-                />
-              ) : (
+              {hotel?.latitude && hotel?.longitude ? (() => {
+                const lat = hotel.latitude;
+                const lng = hotel.longitude;
+                const mapsUrl = `https://www.google.com/maps?q=${lat},${lng}&z=16`;
+                return (
+                  <>
+                    <iframe
+                      title="Hotel Location"
+                      src={`https://maps.google.com/maps?q=${lat},${lng}&z=16&output=embed`}
+                      width="100%"
+                      height="100%"
+                      style={{ border: 0 }}
+                      allowFullScreen
+                      loading="lazy"
+                    />
+                    <div className="text-center py-1">
+                      <a href={mapsUrl} target="_blank" rel="noopener noreferrer" className="text-primary text-xs underline">
+                        Open in Google Maps ↗
+                      </a>
+                    </div>
+                  </>
+                );
+              })() : (
                 <div className="h-full flex flex-col items-center justify-center text-on-surface-variant gap-3">
                   <MapPin size={32} className="text-primary" />
                   <p className="text-sm text-center">CA, Plot 87, near Aster Hospital,<br/>Sadara Mangala Industrial Area, Bengaluru 560048</p>
-                  <a href={SITE_CONFIG.location.googleMapsUrl} target="_blank" rel="noopener noreferrer" className="text-primary text-sm underline">
+                  <a href="https://www.google.com/maps/search/Super+Townhouse+Whitefield+Bengaluru" target="_blank" rel="noopener noreferrer" className="text-primary text-sm underline">
                     Open in Google Maps ↗
                   </a>
                 </div>
