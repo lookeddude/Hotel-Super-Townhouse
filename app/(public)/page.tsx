@@ -13,8 +13,8 @@ export const metadata: Metadata = createMetadata({
     'Book a premium stay at Super Townhouse, Whitefield ITPL Bengaluru. Modern rooms, world-class amenities, and impeccable hospitality await you.',
 });
 
-// Cache this page for 60 seconds — Supabase is only queried once per minute
-export const revalidate = 60;
+// Always fetch fresh data — reflects admin changes instantly
+export const dynamic = 'force-dynamic';
 
 export default async function HomePage() {
   let featuredRooms: any[] = [];
