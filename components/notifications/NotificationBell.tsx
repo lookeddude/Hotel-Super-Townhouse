@@ -18,6 +18,7 @@ function getNotifIcon(type: NotificationType) {
   switch (type) {
     case 'booking_confirmed':
     case 'booking_cancelled':
+    case 'booking_reminder':
     case 'checkin_reminder':
     case 'checkout_reminder': return <CalendarDays size={14} />;
     case 'payment_received':
@@ -26,7 +27,8 @@ function getNotifIcon(type: NotificationType) {
     case 'review_request':
     case 'review_approved':
     case 'review_rejected':   return <Star size={14} />;
-    case 'admin_alert':       return <AlertTriangle size={14} />;
+    case 'admin_alert':
+    case 'room_maintenance':  return <AlertTriangle size={14} />;
     case 'marketing':
     case 'offer_expiry':      return <Tag size={14} />;
     case 'staff_assignment':  return <Settings size={14} />;
@@ -41,11 +43,14 @@ function getNotifColor(type: NotificationType): string {
     case 'review_rejected':
     case 'booking_cancelled':  return 'bg-red-100 text-red-600';
     case 'payment_received':
+    case 'refund_processed':
     case 'review_approved':
     case 'booking_confirmed':  return 'bg-green-100 text-green-600';
-    case 'admin_alert':        return 'bg-orange-100 text-orange-600';
+    case 'admin_alert':
+    case 'room_maintenance':   return 'bg-orange-100 text-orange-600';
     case 'marketing':
     case 'offer_expiry':       return 'bg-purple-100 text-purple-600';
+    case 'staff_assignment':   return 'bg-blue-100 text-blue-600';
     default:                   return 'bg-primary/10 text-primary';
   }
 }
@@ -86,8 +91,8 @@ function NotificationItem({
         <p className="text-xs text-on-surface-variant mt-0.5 line-clamp-2 leading-snug">{n.body}</p>
         <div className="flex items-center justify-between mt-1.5">
           <span className="text-[10px] text-on-surface-variant">{timeAgo(n.created_at)}</span>
-          {n.action_url && (
-            <Link href={n.action_url} className="text-[10px] text-primary hover:underline flex items-center gap-0.5">
+          {(n.data?.action_url as string) && (
+            <Link href={n.data!.action_url as string} className="text-[10px] text-primary hover:underline flex items-center gap-0.5">
               View <ExternalLink size={9} />
             </Link>
           )}

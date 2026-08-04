@@ -7,6 +7,7 @@
  */
 
 // ─── Types ────────────────────────────────────────────────────────────────────
+// Valid notification_type enum values (must match DB enum exactly)
 export type NotificationType =
   | 'booking_confirmed' | 'booking_cancelled' | 'booking_reminder'
   | 'payment_received'  | 'payment_failed'    | 'refund_processed'
@@ -37,8 +38,8 @@ export interface Notification {
   body:        string;
   channel:     NotificationChannel;
   is_read:     boolean;
-  action_url?: string;
-  metadata:    Record<string, unknown>;
+  // DB stores extra context in jsonb 'data' column
+  data?:       Record<string, unknown>;
   created_at:  string;
 }
 
@@ -56,22 +57,25 @@ export async function createNotification(
   payload: CreateNotificationPayload
 ): Promise<Notification | null> {
   try {
-    const { data, error } = await (supabase as any)
+    // Map to actual DB columns: data={action_url, ...metadata}
+    const data: Record<string, unknown> = { ...(payload.metadata ?? {}) };
+    if (payload.actionUrl) data['action_url'] = payload.actionUrl;
+
+    const { data: row, error } = await (supabase as any)
       .from('notifications')
       .insert({
-        user_id:    payload.userId,
-        type:       payload.type,
-        title:      payload.title,
-        body:       payload.body,
-        channel:    payload.channel ?? 'in_app',
-        is_read:    false,
-        action_url: payload.actionUrl,
-        metadata:   payload.metadata ?? {},
+        user_id: payload.userId,
+        type:    payload.type,
+        title:   payload.title,
+        body:    payload.body,
+        channel: payload.channel ?? 'in_app',
+        is_read: false,
+        data,
       })
       .select()
       .single();
     if (error) throw error;
-    return data as Notification;
+    return row as Notification;
   } catch (err) {
     console.error('[notificationService] createNotification:', err);
     return null;
@@ -243,16 +247,19 @@ export async function broadcastNotification(
 ): Promise<number> {
   if (!userIds.length) return 0;
   try {
-    const rows = userIds.map(uid => ({
-      user_id:    uid,
-      type:       payload.type,
-      title:      payload.title,
-      body:       payload.body,
-      channel:    payload.channel ?? 'in_app',
-      is_read:    false,
-      action_url: payload.actionUrl,
-      metadata:   payload.metadata ?? {},
-    }));
+    const rows = userIds.map(uid => {
+      const data: Record<string, unknown> = { ...(payload.metadata ?? {}) };
+      if (payload.actionUrl) data['action_url'] = payload.actionUrl;
+      return {
+        user_id: uid,
+        type:    payload.type,
+        title:   payload.title,
+        body:    payload.body,
+        channel: payload.channel ?? 'in_app',
+        is_read: false,
+        data,
+      };
+    });
     const { data, error } = await (supabase as any)
       .from('notifications')
       .insert(rows)

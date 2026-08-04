@@ -183,8 +183,8 @@ export default function UserNotificationsPage() {
                     <p className="text-xs text-on-surface-variant mt-1 leading-relaxed">{n.body}</p>
                     <div className="flex items-center gap-3 mt-2">
                       <span className="text-[10px] text-on-surface-variant">{timeAgo(n.created_at)}</span>
-                      {n.action_url && (
-                        <Link href={n.action_url} className="text-[10px] text-primary hover:underline flex items-center gap-0.5">
+                      {(n.data?.action_url as string) && (
+                        <Link href={n.data!.action_url as string} className="text-[10px] text-primary hover:underline flex items-center gap-0.5">
                           View details <ExternalLink size={9} />
                         </Link>
                       )}
