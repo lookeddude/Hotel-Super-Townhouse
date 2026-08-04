@@ -51,14 +51,13 @@ export default function HousekeepingPage() {
     }
     toast.success(`Room marked as ${STATUS_CONFIG[status].label}`);
 
-    // 📣 Notify via SECURITY DEFINER RPC (bypasses notifications RLS)
-    if (status === 'clean' || status === 'inspected') {
+    // 📣 Only notify on final step: 'inspected' = room is ready for guests
+    if (status === 'inspected') {
       const staffName = profile?.fullName ?? 'Housekeeping staff';
-      const label     = status === 'inspected' ? 'Inspected ✓ — Ready for Guests' : 'Cleaned';
       await db.rpc('notify_staff_completion', {
         p_type:       'staff_assignment',
-        p_title:      `✅ Room ${roomNumber ?? roomId} ${label}`,
-        p_body:       `${staffName} marked Room ${roomNumber ?? roomId} as ${label.toLowerCase()}.`,
+        p_title:      `✅ Room ${roomNumber ?? roomId} — Ready for Guests`,
+        p_body:       `${staffName} has cleaned and inspected Room ${roomNumber ?? roomId}. Room is ready for the next guest.`,
         p_action_url: '/admin/rooms',
         p_priority:   'normal',
         p_metadata:   { roomId, status },
