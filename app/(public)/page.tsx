@@ -24,22 +24,23 @@ export default async function HomePage() {
     const supabase = await createServerClient();
     const db = supabase as any;
 
-    // Fetch featured room types (first 3) — no nested image join
+    // Fetch featured room types — include image_url which is set by admin panel
     const { data: rooms } = await db
       .from('room_types')
-      .select('id, name, slug, short_description, base_price, max_occupancy, size_sqft, bed_type')
+      .select('id, name, slug, short_description, base_price, max_occupancy, size_sqft, bed_type, image_url, thumbnail_url')
+      .eq('is_active', true)
       .order('display_order', { ascending: true })
       .limit(3);
 
     if (rooms && rooms.length > 0) {
-      // Fetch images separately to avoid RLS/FK join issues
+      // Also fetch from room_images table as fallback
       const roomIds = rooms.map((r: any) => r.id);
       const { data: images } = await db
         .from('room_images')
         .select('room_type_id, storage_path, alt_text, is_primary')
         .in('room_type_id', roomIds);
 
-      // Merge images into each room
+      // Merge: admin-uploaded image_url takes priority
       featuredRooms = rooms.map((r: any) => ({
         ...r,
         room_images: (images ?? []).filter((img: any) => img.room_type_id === r.id),
@@ -80,16 +81,21 @@ export default async function HomePage() {
             <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
               {featuredRooms.map((room) => (
                 <div key={room.id} className="card-base bg-white overflow-hidden hover:shadow-md transition-shadow group">
-                  {/* Room Image */}
+                  {/* Room Image — uses image_url (admin-uploaded) first, then room_images table */}
                   <div className="h-48 relative overflow-hidden bg-gradient-to-br from-surface to-outline-variant">
                     {(() => {
+                      // Priority 1: image_url set by admin panel
+                      const primaryUrl = room.image_url || room.thumbnail_url;
+                      // Priority 2: room_images table entry
                       const imgs: any[] = room.room_images ?? [];
-                      const img = imgs.find((i: any) => i.is_primary) ?? imgs[0];
-                      return img?.storage_path ? (
+                      const imgRecord = imgs.find((i: any) => i.is_primary) ?? imgs[0];
+                      const finalSrc = primaryUrl || imgRecord?.storage_path;
+                      return finalSrc ? (
                         <Image
-                          src={img.storage_path}
-                          alt={img.alt_text ?? room.name}
+                          src={finalSrc}
+                          alt={room.name}
                           fill
+                          unoptimized={finalSrc.startsWith('http')}
                           className="object-cover group-hover:scale-105 transition-transform duration-500"
                           sizes="(max-width: 768px) 100vw, 33vw"
                         />
