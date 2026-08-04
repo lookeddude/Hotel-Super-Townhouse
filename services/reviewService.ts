@@ -97,15 +97,16 @@ export async function getReviewStats(client: Client) {
     .from('reviews')
     .select('status, overall_rating');
 
-  if (error || !data) return { pending: 0, approved: 0, rejected: 0, avg: 0 };
+  if (error || !data) return { pending: 0, approved: 0, rejected: 0, flagged: 0, avg: 0 };
 
-  const pending = data.filter((r) => r.status === 'pending').length;
+  const pending  = data.filter((r) => r.status === 'pending').length;
   const approved = data.filter((r) => r.status === 'approved').length;
   const rejected = data.filter((r) => r.status === 'rejected').length;
+  const flagged  = data.filter((r) => r.status === 'flagged').length;
   const approvedRatings = data.filter((r) => r.status === 'approved' && r.overall_rating);
   const avg =
     approvedRatings.length > 0
       ? approvedRatings.reduce((s, r) => s + (r.overall_rating ?? 0), 0) / approvedRatings.length
       : 0;
-  return { pending, approved, rejected, avg: Math.round(avg * 10) / 10 };
+  return { pending, approved, rejected, flagged, avg: Math.round(avg * 10) / 10 };
 }

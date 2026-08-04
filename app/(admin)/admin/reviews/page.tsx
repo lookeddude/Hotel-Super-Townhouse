@@ -1,7 +1,7 @@
 'use client';
 
 import { useEffect, useState, useCallback } from 'react';
-import { Star, CheckCircle, XCircle, Trash2, RefreshCcw, MessageSquare } from 'lucide-react';
+import { Star, CheckCircle, XCircle, Trash2, RefreshCcw, MessageSquare, Flag } from 'lucide-react';
 import { useSupabase } from '@/providers/SupabaseProvider';
 import { getReviews, updateReviewStatus, addAdminReply, deleteReview, getReviewStats } from '@/services/reviewService';
 import { toast } from 'sonner';
@@ -9,7 +9,7 @@ import { toast } from 'sonner';
 export default function AdminReviewsPage() {
   const { supabase } = useSupabase();
   const [reviews, setReviews] = useState<any[]>([]);
-  const [stats, setStats] = useState({ pending: 0, approved: 0, rejected: 0, avg: 0 });
+  const [stats, setStats] = useState({ pending: 0, approved: 0, rejected: 0, flagged: 0, avg: 0 });
   const [isLoading, setIsLoading] = useState(true);
   const [filterStatus, setFilterStatus] = useState('pending');
   const [replyingTo, setReplyingTo] = useState<string | null>(null);
@@ -78,11 +78,12 @@ export default function AdminReviewsPage() {
         </button>
       </div>
 
-      <div className="grid grid-cols-3 gap-4">
+      <div className="grid grid-cols-4 gap-4">
         {[
-          { label: 'Pending', value: stats.pending, color: 'text-yellow-600' },
-          { label: 'Approved', value: stats.approved, color: 'text-green-600' },
-          { label: 'Rejected', value: stats.rejected, color: 'text-red-600' },
+          { label: 'Pending',  value: stats.pending,  color: 'text-yellow-600' },
+          { label: 'Approved', value: stats.approved, color: 'text-green-600'  },
+          { label: 'Rejected', value: stats.rejected, color: 'text-red-600'    },
+          { label: 'Flagged',  value: stats.flagged,  color: 'text-orange-600' },
         ].map((s) => (
           <div key={s.label} className="bg-white rounded-lg border border-outline-variant p-4">
             <p className={`font-heading font-bold text-2xl ${s.color}`}>{s.value}</p>
@@ -144,6 +145,16 @@ export default function AdminReviewsPage() {
                       {review.status !== 'rejected' && (
                         <button onClick={() => handleStatus(review.id, 'rejected')} className="p-1.5 bg-red-50 text-red-600 rounded hover:bg-red-100" title="Reject">
                           <XCircle size={16} />
+                        </button>
+                      )}
+                      {/* Flag / Unflag */}
+                      {review.status !== 'flagged' ? (
+                        <button onClick={() => handleStatus(review.id, 'flagged')} className="p-1.5 bg-orange-50 text-orange-500 rounded hover:bg-orange-100" title="Flag as suspicious">
+                          <Flag size={16} />
+                        </button>
+                      ) : (
+                        <button onClick={() => handleStatus(review.id, 'pending')} className="p-1.5 bg-orange-100 text-orange-600 rounded hover:bg-orange-200" title="Unflag (move back to pending)">
+                          <Flag size={16} className="fill-orange-500" />
                         </button>
                       )}
                       <button onClick={() => { setReplyingTo(replyingTo === review.id ? null : review.id); setReplyText(review.admin_reply || ''); }} className="p-1.5 bg-blue-50 text-blue-600 rounded hover:bg-blue-100" title="Reply">

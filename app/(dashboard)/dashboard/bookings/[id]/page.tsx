@@ -117,6 +117,18 @@ export default function BookingDetailPage() {
     toast.success('Thank you for your review! 🌟');
     setReviewSubmitted(true);
     setExistingReview({ overall_rating: reviewForm.overall_rating, comment: reviewForm.comment });
+
+    // 🔔 Notify admin that a new review is pending moderation
+    fetch('/api/notifications/admin', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        type:  'review_request',
+        title: `⭐ New Review — ${reviewForm.overall_rating}/5 Stars`,
+        body:  `${reviewForm.title ? `"${reviewForm.title}" — ` : ''}${reviewForm.comment.slice(0, 100)}${reviewForm.comment.length > 100 ? '…' : ''}`,
+        data:  { action_url: '/admin/reviews', booking_id: id },
+      }),
+    }).catch(() => {});
   };
   const handleGenerateInvoice = async () => {
     const { data, error } = await generateInvoice(supabase as any, id);
