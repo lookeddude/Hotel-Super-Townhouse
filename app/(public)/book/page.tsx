@@ -1224,11 +1224,13 @@ function BookPageInner() {
       }
 
       // ── Notify admin (non-blocking) ──
+      // Use 'admin_alert' type so this ONLY shows in /admin/notifications
+      // and never leaks into the customer /dashboard/notifications
       fetch('/api/notifications/admin', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
-          type:       'booking_confirmed',
+          type:       'admin_alert',
           title:      `🏨 New Booking — ${data.booking_reference ?? ''}`,
           body:       `${state.guest.fullName} booked ${state.selectedRoom!.room_type_name} · #${state.selectedRoom!.room_number} from ${formatDate(state.checkIn)} to ${formatDate(state.checkOut)} · ${formatINR(state.breakdown!.totalAmount)}`,
           data:       { booking_reference: data.booking_reference, guest_name: state.guest.fullName, guest_email: state.guest.email },
