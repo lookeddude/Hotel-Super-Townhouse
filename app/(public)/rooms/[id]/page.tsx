@@ -19,7 +19,7 @@ export async function generateMetadata({ params }: RoomDetailPageProps): Promise
     const { data: rt } = await (supabase as any)
       .from('room_types')
       .select('name, description')
-      .or(`id.eq.${id},slug.eq.${id}`)
+      .eq('slug', id)
       .maybeSingle();
     if (rt) return createMetadata({
       title: `${rt.name} — Super Townhouse`,
@@ -41,8 +41,12 @@ export default async function RoomDetailPage({ params }: RoomDetailPageProps) {
     const supabase = await createServerClient();
     const db = supabase as any;
 
-    // Fetch room type by id or slug
-    const { data: rt } = await db
+    // Fetch room type — try by slug first, then fall back to UUID
+    // (Using .or() with a UUID column and a non-UUID value causes DB errors)
+    let rt: any = null;
+
+    // 1. Try by slug
+    const slugRes = await db
       .from('room_types')
       .select(`
         id, name, slug, description, short_description,
@@ -50,8 +54,24 @@ export default async function RoomDetailPage({ params }: RoomDetailPageProps) {
         size_sqft, bed_type, view_type, breakfast_included, breakfast_price,
         display_order, images, image_url
       `)
-      .or(`id.eq.${id},slug.eq.${id}`)
+      .eq('slug', id)
       .maybeSingle();
+    rt = slugRes.data;
+
+    // 2. Fall back to UUID lookup if slug didn't match
+    if (!rt && /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(id)) {
+      const idRes = await db
+        .from('room_types')
+        .select(`
+          id, name, slug, description, short_description,
+          base_price, weekend_price, max_occupancy, max_adults, max_children,
+          size_sqft, bed_type, view_type, breakfast_included, breakfast_price,
+          display_order, images, image_url
+        `)
+        .eq('id', id)
+        .maybeSingle();
+      rt = idRes.data;
+    }
 
     if (!rt) return notFound();
     roomType = rt;
