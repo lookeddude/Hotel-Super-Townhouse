@@ -5,7 +5,10 @@ import { HeroSection } from '@/features/home/HeroSection';
 import { AmenitiesSection } from '@/features/home/AmenitiesSection';
 import { createMetadata } from '@/lib/metadata';
 import Link from 'next/link';
+import Image from 'next/image';
 import { ROUTES } from '@/constants/routes';
+import { createServerClient } from '@/lib/supabase/server';
+import { BedDouble, Users, Maximize2, Star } from 'lucide-react';
 
 export const metadata: Metadata = createMetadata({
   title: 'Super Townhouse — Premium Hotel in Whitefield, Bengaluru',
@@ -13,73 +16,154 @@ export const metadata: Metadata = createMetadata({
     'Book a premium stay at Super Townhouse, Whitefield ITPL Bengaluru. Modern rooms, world-class amenities, and impeccable hospitality await you.',
 });
 
-export default function HomePage() {
+// Always fetch fresh data — reflects admin changes instantly
+export const dynamic = 'force-dynamic';
+
+export default async function HomePage() {
+  let featuredRooms: any[] = [];
+  let approvedReviews: any[] = [];
+
+  try {
+    const supabase = await createServerClient();
+    const db = supabase as any;
+
+    // Fetch featured room types — include image_url set by admin panel
+    const { data: rooms } = await db
+      .from('room_types')
+      .select('id, name, slug, short_description, base_price, max_occupancy, size_sqft, bed_type, image_url, thumbnail_url')
+      .eq('is_active', true)
+      .order('display_order', { ascending: true })
+      .limit(3);
+
+    if (rooms && rooms.length > 0) {
+      // Also fetch room_images table as fallback
+      const roomIds = rooms.map((r: any) => r.id);
+      const { data: images } = await db
+        .from('room_images')
+        .select('room_type_id, storage_path, alt_text, is_primary')
+        .in('room_type_id', roomIds);
+
+      featuredRooms = rooms.map((r: any) => ({
+        ...r,
+        room_images: (images ?? []).filter((img: any) => img.room_type_id === r.id),
+      }));
+    }
+
+    // Fetch 3 approved reviews
+    const { data: reviews } = await db
+      .from('reviews')
+      .select('id, title, comment, overall_rating, created_at, profiles:guest_id(full_name)')
+      .eq('status', 'approved')
+      .order('created_at', { ascending: false })
+      .limit(3);
+    approvedReviews = reviews ?? [];
+  } catch {
+    // Silently fall back to empty arrays
+  }
+
+  // Hardcoded fallback testimonials (shown only when no approved reviews exist)
+  const fallbackReviews = [
+    { name: 'Arjun Mehta',  rating: 5, text: 'Excellent stay! Very clean, well-maintained, and the staff was incredibly helpful. Perfect for my business trip to Whitefield.' },
+    { name: 'Priya Sharma', rating: 5, text: 'The rooms are spacious and the Wi-Fi is super fast. Great location near ITPL. Will definitely book again!' },
+    { name: 'Rahul Nair',   rating: 4, text: 'Good value for money. The restaurant food was amazing. Checkout was smooth and staff was very courteous.' },
+  ];
+
   return (
     <div className="flex flex-col min-h-screen bg-background">
       <Navbar />
       <main id="main-content" className="flex-1">
+
         {/* Hero */}
         <HeroSection />
 
         {/* Amenities */}
         <AmenitiesSection />
 
-        {/* Featured Rooms */}
+        {/* Featured Rooms — Live from DB */}
         <section className="section-gap bg-background" aria-labelledby="featured-rooms-heading">
           <div className="container-custom">
             <div className="text-center mb-12">
               <p className="text-label-md text-primary uppercase tracking-widest mb-3">Our Rooms</p>
-              <h2
-                id="featured-rooms-heading"
-                className="font-heading text-headline-lg text-on-surface mb-4"
-              >
-                Rooms & Suites
+              <h2 id="featured-rooms-heading" className="font-heading text-headline-lg text-on-surface mb-4">
+                Rooms &amp; Suites
               </h2>
               <p className="text-body-lg text-on-surface-variant max-w-xl mx-auto">
                 From cozy standard rooms to spacious suites — every room is designed for your comfort.
               </p>
             </div>
+
             <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
-              {[
-                { name: 'Standard Room', price: '₹2,499', guests: '2', size: '250 sq ft', color: 'bg-blue-50' },
-                { name: 'Deluxe King Room', price: '₹3,499', guests: '2', size: '350 sq ft', color: 'bg-primary/5' },
-                { name: 'Executive Suite', price: '₹5,999', guests: '4', size: '550 sq ft', color: 'bg-green-50' },
-              ].map((room) => (
-                <div
-                  key={room.name}
-                  className="card-base bg-white group"
-                >
-                  <div className={`h-52 ${room.color} flex items-center justify-center`}>
-                    <span className="text-4xl">🛏️</span>
-                  </div>
-                  <div className="p-5 space-y-3">
-                    <h3 className="font-heading font-semibold text-base text-on-surface">{room.name}</h3>
-                    <div className="flex gap-4 text-caption text-on-surface-variant">
-                      <span>👥 {room.guests} Guests</span>
-                      <span>📐 {room.size}</span>
+              {featuredRooms.length > 0 ? featuredRooms.map((room) => {
+                // Priority 1: image_url from admin panel upload
+                const primaryUrl = room.image_url || room.thumbnail_url;
+                // Priority 2: room_images table
+                const imgs: any[] = room.room_images ?? [];
+                const imgRecord = imgs.find((i: any) => i.is_primary) ?? imgs[0];
+                const finalSrc = primaryUrl || imgRecord?.storage_path;
+
+                return (
+                  <div key={room.id} className="card-base bg-white overflow-hidden hover:shadow-md transition-shadow group">
+                    {/* Room Image */}
+                    <div className="h-52 relative overflow-hidden bg-gradient-to-br from-surface to-outline-variant">
+                      {finalSrc ? (
+                        <Image
+                          src={finalSrc}
+                          alt={room.name}
+                          fill
+                          unoptimized={finalSrc.startsWith('http')}
+                          className="object-cover group-hover:scale-105 transition-transform duration-500"
+                          sizes="(max-width: 768px) 100vw, 33vw"
+                        />
+                      ) : (
+                        <div className="w-full h-full flex items-center justify-center">
+                          <BedDouble size={40} className="text-outline" />
+                        </div>
+                      )}
                     </div>
-                    <div className="flex flex-wrap gap-1.5">
-                      {['Wi-Fi', 'AC', 'TV'].map((a) => (
-                        <span key={a} className="px-2.5 py-1 bg-surface text-caption text-on-surface-variant rounded">
-                          {a}
-                        </span>
-                      ))}
-                    </div>
-                    <div className="flex items-center justify-between pt-2 border-t border-outline-variant">
-                      <div>
-                        <span className="price-tag text-xl">{room.price}</span>
-                        <span className="text-caption text-on-surface-variant"> / night</span>
+
+                    <div className="p-5 space-y-3">
+                      <h3 className="font-heading font-semibold text-base text-on-surface">{room.name}</h3>
+                      {room.short_description && (
+                        <p className="text-sm text-on-surface-variant line-clamp-2">{room.short_description}</p>
+                      )}
+                      <div className="flex flex-wrap gap-3 text-xs text-on-surface-variant">
+                        {room.max_occupancy && (
+                          <span className="flex items-center gap-1"><Users size={12} />{room.max_occupancy} Guests</span>
+                        )}
+                        {room.size_sqft && (
+                          <span className="flex items-center gap-1"><Maximize2 size={12} />{room.size_sqft} sq ft</span>
+                        )}
                       </div>
-                      <Link
-                        href={ROUTES.rooms}
-                        className="px-4 py-2 bg-primary text-white text-label-md rounded-lg hover:bg-primary-dark transition-colors"
-                      >
-                        Book Now
-                      </Link>
+                      <div className="flex flex-wrap gap-1.5">
+                        {['Wi-Fi', 'AC', 'TV'].map((a) => (
+                          <span key={a} className="px-2.5 py-1 bg-surface text-caption text-on-surface-variant rounded">{a}</span>
+                        ))}
+                      </div>
+                      <div className="flex items-center justify-between pt-2 border-t border-outline-variant">
+                        <div>
+                          <span className="price-tag text-xl">
+                            ₹{room.base_price?.toLocaleString('en-IN') ?? '—'}
+                          </span>
+                          <span className="text-caption text-on-surface-variant"> / night</span>
+                        </div>
+                        <Link
+                          href={`/rooms/${room.slug || room.id}`}
+                          className="px-4 py-2 bg-primary text-white text-label-md rounded-lg hover:bg-primary-dark transition-colors"
+                        >
+                          Book Now
+                        </Link>
+                      </div>
                     </div>
                   </div>
-                </div>
-              ))}
+                );
+              }) : (
+                // Fallback skeleton if DB returns nothing
+                Array.from({ length: 3 }).map((_, i) => (
+                  <div key={i} className="card-base bg-white h-80 flex items-center justify-center text-on-surface-variant animate-pulse">
+                    <BedDouble size={32} className="opacity-30" />
+                  </div>
+                ))
+              )}
             </div>
 
             <div className="text-center mt-10">
@@ -93,7 +177,7 @@ export default function HomePage() {
           </div>
         </section>
 
-        {/* Testimonials */}
+        {/* Testimonials — Live approved reviews or fallback */}
         <section className="section-gap bg-surface" aria-labelledby="testimonials-heading">
           <div className="container-custom">
             <div className="text-center mb-12">
@@ -103,26 +187,35 @@ export default function HomePage() {
               </h2>
             </div>
             <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
-              {[
-                { name: 'Arjun Mehta', rating: 5, text: 'Excellent stay! Very clean, well-maintained, and the staff was incredibly helpful. Perfect for my business trip to Whitefield.' },
-                { name: 'Priya Sharma', rating: 5, text: 'The rooms are spacious and the Wi-Fi is super fast. Great location near ITPL. Will definitely book again!' },
-                { name: 'Rahul Nair', rating: 4, text: 'Good value for money. The restaurant food was amazing. Checkout was smooth and staff was very courteous.' },
-              ].map((review) => (
+              {approvedReviews.length > 0 ? approvedReviews.map((review) => {
+                const guestName = Array.isArray(review.profiles)
+                  ? review.profiles[0]?.full_name
+                  : review.profiles?.full_name;
+                return (
+                  <div key={review.id} className="bg-white p-6 rounded-lg border border-outline-variant space-y-4">
+                    <div className="flex gap-0.5">
+                      {Array.from({ length: 5 }).map((_, s) => (
+                        <Star key={s} size={14} className={s < (review.overall_rating ?? 0) ? 'text-yellow-400 fill-yellow-400' : 'text-outline-variant'} />
+                      ))}
+                    </div>
+                    {review.title && <p className="font-semibold text-sm text-on-surface">{review.title}</p>}
+                    <p className="text-on-surface-variant text-sm leading-relaxed italic line-clamp-4">
+                      &ldquo;{review.comment}&rdquo;
+                    </p>
+                    <p className="text-xs text-primary font-semibold">— {guestName ?? 'Verified Guest'}</p>
+                  </div>
+                );
+              }) : fallbackReviews.map((review) => (
                 <div key={review.name} className="bg-white p-6 rounded-lg border border-outline-variant space-y-4">
                   <div className="flex gap-0.5">
                     {Array.from({ length: review.rating }).map((_, i) => (
-                      <span key={i} className="text-primary text-base">★</span>
+                      <Star key={i} size={14} className="text-yellow-400 fill-yellow-400" />
                     ))}
                   </div>
                   <p className="text-on-surface-variant text-sm leading-relaxed italic">
                     &ldquo;{review.text}&rdquo;
                   </p>
-                  <div className="flex items-center gap-3 pt-1">
-                    <div className="w-8 h-8 rounded-full bg-primary flex items-center justify-center text-white text-xs font-bold">
-                      {review.name[0]}
-                    </div>
-                    <p className="font-heading font-semibold text-sm text-on-surface">{review.name}</p>
-                  </div>
+                  <p className="text-xs text-primary font-semibold">— {review.name}</p>
                 </div>
               ))}
             </div>
@@ -130,10 +223,7 @@ export default function HomePage() {
         </section>
 
         {/* CTA */}
-        <section
-          className="py-20 bg-primary-gradient text-white"
-          aria-labelledby="cta-heading"
-        >
+        <section className="py-20 bg-primary-gradient text-white" aria-labelledby="cta-heading">
           <div className="container-custom text-center">
             <h2 id="cta-heading" className="font-heading text-headline-lg mb-4">
               Ready for an Unforgettable Stay?
@@ -149,6 +239,7 @@ export default function HomePage() {
             </Link>
           </div>
         </section>
+
       </main>
       <Footer />
     </div>
