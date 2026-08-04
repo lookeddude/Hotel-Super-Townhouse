@@ -4,6 +4,7 @@ import { useEffect, useState, useCallback } from 'react';
 import { useParams, useRouter } from 'next/navigation';
 import Link from 'next/link';
 import { useSupabase } from '@/providers/SupabaseProvider';
+import { useAuth } from '@/providers/AuthProvider';
 import { getBookingById, cancelBooking } from '@/services/bookingService';
 import { generateInvoice, getInvoiceByBooking } from '@/services/invoiceService';
 import { formatINR, formatDate } from '@/services/pricingService';
@@ -11,8 +12,26 @@ import { InvoiceView } from '@/components/invoice/InvoiceView';
 import { toast } from 'sonner';
 import {
   Calendar, BedDouble, Users, Clock, FileText, XCircle,
-  ArrowLeft, CheckCircle2, MapPin, Phone
+  ArrowLeft, CheckCircle2, MapPin, Phone, Star,
 } from 'lucide-react';
+// Star rating picker
+function StarPicker({ value, onChange }: { value: number; onChange: (v: number) => void }) {
+  const [hover, setHover] = useState(0);
+  return (
+    <div className="flex gap-1">
+      {[1,2,3,4,5].map(s => (
+        <button key={s} type="button"
+          onMouseEnter={() => setHover(s)}
+          onMouseLeave={() => setHover(0)}
+          onClick={() => onChange(s)}
+          className="transition-transform hover:scale-110"
+        >
+          <Star size={24} className={s <= (hover || value) ? 'fill-yellow-400 text-yellow-400' : 'text-gray-300'} />
+        </button>
+      ))}
+    </div>
+  );
+}
 
 const STATUS_CONFIG: Record<string, { label: string; color: string }> = {
   pending:     { label: 'Pending Confirmation', color: 'bg-yellow-100 text-yellow-700 border-yellow-200' },
@@ -27,6 +46,7 @@ export default function BookingDetailPage() {
   const { id } = useParams<{ id: string }>();
   const router = useRouter();
   const { supabase } = useSupabase();
+  const { user } = useAuth();
   const [booking, setBooking] = useState<any>(null);
   const [invoice, setInvoice] = useState<any>(null);
   const [isLoading, setIsLoading] = useState(true);
@@ -34,15 +54,27 @@ export default function BookingDetailPage() {
   const [showCancelModal, setShowCancelModal] = useState(false);
   const [cancelReason, setCancelReason] = useState('');
   const [showInvoice, setShowInvoice] = useState(false);
+  // Review state
+  const [existingReview, setExistingReview] = useState<any>(null);
+  const [reviewSubmitted, setReviewSubmitted] = useState(false);
+  const [isSubmittingReview, setIsSubmittingReview] = useState(false);
+  const [reviewForm, setReviewForm] = useState({
+    overall_rating: 0, cleanliness_rating: 0, service_rating: 0,
+    value_rating: 0, comfort_rating: 0,
+    title: '', comment: '',
+  });
 
   const load = useCallback(async () => {
     setIsLoading(true);
     const { data } = await getBookingById(supabase as any, id);
     setBooking(data);
-    // Fetch invoice if exists
     if (data) {
       const { data: inv } = await getInvoiceByBooking(supabase as any, id);
       setInvoice(inv);
+      // Check if review already submitted for this booking
+      const { data: rev } = await (supabase as any)
+        .from('reviews').select('id, overall_rating, comment').eq('booking_id', id).maybeSingle();
+      setExistingReview(rev ?? null);
     }
     setIsLoading(false);
   }, [supabase, id]);
@@ -60,6 +92,32 @@ export default function BookingDetailPage() {
     setIsCancelling(false);
   };
 
+  const handleSubmitReview = async () => {
+    if (!reviewForm.overall_rating) { toast.error('Please give an overall rating'); return; }
+    if (!reviewForm.comment.trim()) { toast.error('Please write a review comment'); return; }
+    setIsSubmittingReview(true);
+    const room = Array.isArray(booking?.booking_rooms) ? booking.booking_rooms[0] : null;
+    const { error } = await (supabase as any).from('reviews').insert({
+      booking_id:         id,
+      guest_id:           user?.id,
+      room_id:            room?.room_id ?? null,
+      room_type_id:       room?.room_type_id ?? null,
+      overall_rating:     reviewForm.overall_rating,
+      cleanliness_rating: reviewForm.cleanliness_rating || null,
+      service_rating:     reviewForm.service_rating || null,
+      value_rating:       reviewForm.value_rating || null,
+      comfort_rating:     reviewForm.comfort_rating || null,
+      title:              reviewForm.title || null,
+      comment:            reviewForm.comment,
+      is_verified_guest:  true,
+      status:             'pending',
+    });
+    setIsSubmittingReview(false);
+    if (error) { toast.error('Failed to submit review. Please try again.'); return; }
+    toast.success('Thank you for your review! 🌟');
+    setReviewSubmitted(true);
+    setExistingReview({ overall_rating: reviewForm.overall_rating, comment: reviewForm.comment });
+  };
   const handleGenerateInvoice = async () => {
     const { data, error } = await generateInvoice(supabase as any, id);
     if (error || !data?.success) { toast.error('Failed to generate invoice'); return; }
@@ -174,6 +232,83 @@ export default function BookingDetailPage() {
               {booking.cancelled_at && <div className="flex justify-between text-red-600"><span>Cancelled</span><span>{new Date(booking.cancelled_at).toLocaleString('en-IN')}</span></div>}
               {booking.cancellation_reason && <div className="text-xs text-on-surface-variant mt-1">Reason: {booking.cancellation_reason}</div>}
             </div>
+          </div>
+        )}
+
+        {/* Post-Checkout Review Section */}
+        {booking.status === 'checked_out' && (
+          <div className="bg-white rounded-xl border border-outline-variant p-5">
+            <h2 className="font-semibold text-base text-on-surface mb-1 flex items-center gap-2">
+              <Star size={16} className="text-yellow-400" /> Share Your Experience
+            </h2>
+            {existingReview ? (
+              <div className="text-center py-4">
+                <div className="flex justify-center gap-1 mb-2">
+                  {[1,2,3,4,5].map(s => (
+                    <Star key={s} size={20} className={s <= existingReview.overall_rating ? 'fill-yellow-400 text-yellow-400' : 'text-gray-300'} />
+                  ))}
+                </div>
+                <p className="text-sm font-medium text-green-600">✅ You've already reviewed this stay</p>
+                <p className="text-xs text-on-surface-variant mt-1 italic">"{existingReview.comment?.slice(0, 80)}..."</p>
+              </div>
+            ) : reviewSubmitted ? (
+              <div className="text-center py-4">
+                <p className="text-2xl mb-2">🌟</p>
+                <p className="font-semibold text-on-surface">Thank you for your review!</p>
+                <p className="text-sm text-on-surface-variant mt-1">Your review is pending approval and will appear shortly.</p>
+              </div>
+            ) : (
+              <div className="space-y-4 mt-3">
+                {/* Overall Rating */}
+                <div>
+                  <p className="text-sm font-medium text-on-surface mb-1.5">Overall Rating <span className="text-red-500">*</span></p>
+                  <StarPicker value={reviewForm.overall_rating} onChange={v => setReviewForm(f => ({ ...f, overall_rating: v }))} />
+                </div>
+                {/* Sub-ratings */}
+                <div className="grid grid-cols-2 gap-3">
+                  {[
+                    { key: 'cleanliness_rating', label: 'Cleanliness' },
+                    { key: 'service_rating',     label: 'Service' },
+                    { key: 'value_rating',        label: 'Value for Money' },
+                    { key: 'comfort_rating',      label: 'Comfort' },
+                  ].map(({ key, label }) => (
+                    <div key={key}>
+                      <p className="text-xs text-on-surface-variant mb-1">{label}</p>
+                      <div className="flex gap-0.5">
+                        {[1,2,3,4,5].map(s => (
+                          <button key={s} type="button" onClick={() => setReviewForm(f => ({ ...f, [key]: s }))}
+                            className="transition-transform hover:scale-110">
+                            <Star size={14} className={(reviewForm as any)[key] >= s ? 'fill-yellow-400 text-yellow-400' : 'text-gray-300'} />
+                          </button>
+                        ))}
+                      </div>
+                    </div>
+                  ))}
+                </div>
+                {/* Title */}
+                <div>
+                  <label className="text-sm font-medium text-on-surface block mb-1">Review Title</label>
+                  <input type="text" placeholder="Summarise your experience..."
+                    value={reviewForm.title}
+                    onChange={e => setReviewForm(f => ({ ...f, title: e.target.value }))}
+                    className="w-full px-3 py-2 border border-outline-variant rounded-lg text-sm focus:outline-none focus:border-primary"
+                  />
+                </div>
+                {/* Comment */}
+                <div>
+                  <label className="text-sm font-medium text-on-surface block mb-1">Your Review <span className="text-red-500">*</span></label>
+                  <textarea rows={4} placeholder="Tell us about your stay — what did you love? Any suggestions?"
+                    value={reviewForm.comment}
+                    onChange={e => setReviewForm(f => ({ ...f, comment: e.target.value }))}
+                    className="w-full px-3 py-2 border border-outline-variant rounded-lg text-sm resize-none focus:outline-none focus:border-primary"
+                  />
+                </div>
+                <button onClick={handleSubmitReview} disabled={isSubmittingReview}
+                  className="w-full py-3 bg-primary text-white font-semibold rounded-lg hover:bg-primary/90 transition-colors text-sm disabled:opacity-60">
+                  {isSubmittingReview ? 'Submitting…' : '⭐ Submit Review'}
+                </button>
+              </div>
+            )}
           </div>
         )}
 

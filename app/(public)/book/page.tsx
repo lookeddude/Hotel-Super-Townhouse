@@ -842,8 +842,8 @@ function Step4PriceSummary({ state, onChange, onNext, onBack, loading }: Step4Pr
   return (
     <div className="space-y-5 animate-fade-in">
       <div>
-        <h2 className="font-heading text-headline-md text-on-surface mb-1">Review Your Booking</h2>
-        <p className="text-sm text-on-surface-variant">Please review your stay details before confirming.</p>
+        <h2 className="font-heading text-headline-md text-on-surface mb-1">Booking Summary</h2>
+        <p className="text-sm text-on-surface-variant">Please confirm your stay details before booking.</p>
       </div>
 
       {/* Booking summary card */}
