@@ -6,7 +6,8 @@
 import { useEffect, useState, useCallback } from 'react';
 import { useRouter } from 'next/navigation';
 import { useSupabase } from '@/providers/SupabaseProvider';
-import { getAllNotificationsAdmin, type NotificationType } from '@/services/notificationService';
+import { useAuth } from '@/providers/AuthProvider';
+import { getUserNotifications, type NotificationType } from '@/services/notificationService';
 import {
   Bell, RefreshCw, Search, CheckCircle, Trash2,
   MailOpen, Mail, ExternalLink, CheckCheck,
@@ -55,18 +56,21 @@ function timeAgo(d: string) {
 // ── Main Page ─────────────────────────────────────────────────────────────────
 export default function AdminNotificationsPage() {
   const { supabase }          = useSupabase();
+  const { user }              = useAuth();
   const router                = useRouter();
   const [notifs, setNotifs]   = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
   const [search,  setSearch]  = useState('');
   const [filter,  setFilter]  = useState<'all' | 'unread' | 'read'>('all');
 
+  // Only load THIS user's notifications — not everyone's
   const load = useCallback(async () => {
+    if (!user?.id) return;
     setLoading(true);
-    const data = await getAllNotificationsAdmin(supabase, { limit: 300 });
+    const data = await getUserNotifications(supabase, user.id, { limit: 300 });
     setNotifs(data);
     setLoading(false);
-  }, [supabase]);
+  }, [supabase, user?.id]);
 
   useEffect(() => { load(); }, [load]);
 
