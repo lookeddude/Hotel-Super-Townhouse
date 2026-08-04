@@ -14,32 +14,68 @@ import {
 } from 'lucide-react';
 import { toast } from 'sonner';
 
-// ── Smart redirect based on notification type ─────────────────────────────────
+// ── Smart redirect based on notification content ─────────────────────────────
 function getRedirectUrl(n: any): string {
+  // 1. Use stored action_url from data if available
+  if (n.data?.action_url) return n.data.action_url;
+
   const type: string = n.type ?? '';
-  const bookingId   = n.booking_id ?? n.data?.booking_id;
-  if (type === 'booking_confirmed' || type === 'booking_cancelled' || type === 'booking_reminder') {
+  const title: string = (n.title ?? '').toLowerCase();
+  const bookingId = n.data?.booking_id;
+
+  // Booking notifications
+  if (type === 'booking_confirmed' || type === 'booking_cancelled' ||
+      type === 'booking_reminder'  || type === 'checkin_reminder'  ||
+      type === 'checkout_reminder') {
     return bookingId ? `/admin/bookings/${bookingId}` : '/admin/bookings';
   }
-  if (type === 'admin_alert') return '/admin/communications';
-  if (type === 'payment_received' || type === 'payment_failed') return '/admin/payments';
-  if (type === 'review_request'  || type === 'review_approved' || type === 'review_rejected') return '/admin/reviews';
-  if (type === 'checkin_reminder' || type === 'checkout_reminder') return '/admin/calendar';
+
+  // Admin alerts — route by title content
+  if (type === 'admin_alert') {
+    if (title.includes('booking') || title.includes('check')) return '/admin/bookings';
+    if (title.includes('payment'))                             return '/admin/payments';
+    if (title.includes('review'))                             return '/admin/reviews';
+    if (title.includes('contact') || title.includes('inquiry')) return '/admin/communications';
+    return '/admin/bookings'; // default for new booking alerts
+  }
+
+  // Staff operational notifications
+  if (type === 'staff_assignment' || type === 'room_maintenance') {
+    if (title.includes('clean') || title.includes('inspect') || title.includes('housekeep')) return '/admin/housekeeping';
+    if (title.includes('maintenance') || title.includes('repair') || title.includes('fix'))  return '/admin/maintenance';
+    return '/admin/rooms';
+  }
+
+  // Other types
+  if (type === 'payment_received' || type === 'payment_failed' || type === 'refund_processed') return '/admin/payments';
+  if (type === 'review_request'   || type === 'review_approved' || type === 'review_rejected') return '/admin/reviews';
+  if (type === 'contact_reply')   return '/admin/communications';
+  if (type === 'marketing' || type === 'offer_expiry') return '/admin/offers';
+
   return '/admin/dashboard';
 }
 
 // ── Type badge ────────────────────────────────────────────────────────────────
 function TypeBadge({ type }: { type: string }) {
   const map: Record<string, { label: string; cls: string }> = {
-    booking_confirmed:  { label: '🏨 Booking',  cls: 'bg-blue-100 text-blue-700' },
-    booking_cancelled:  { label: '❌ Cancel',   cls: 'bg-red-100 text-red-700' },
-    booking_reminder:   { label: '⏰ Reminder', cls: 'bg-yellow-100 text-yellow-700' },
-    payment_received:   { label: '💳 Payment',  cls: 'bg-green-100 text-green-700' },
-    payment_failed:     { label: '⚠️ Pmt Fail', cls: 'bg-red-100 text-red-700' },
-    review_request:     { label: '⭐ Review',   cls: 'bg-yellow-100 text-yellow-700' },
-    admin_alert:        { label: '💬 Inquiry',  cls: 'bg-orange-100 text-orange-700' },
-    checkin_reminder:   { label: '🔑 Check-in', cls: 'bg-teal-100 text-teal-700' },
-    checkout_reminder:  { label: '🚪 Checkout', cls: 'bg-slate-100 text-slate-700' },
+    booking_confirmed:  { label: '🏨 Booking',       cls: 'bg-blue-100 text-blue-700' },
+    booking_cancelled:  { label: '❌ Cancelled',     cls: 'bg-red-100 text-red-700' },
+    booking_reminder:   { label: '⏰ Reminder',      cls: 'bg-yellow-100 text-yellow-700' },
+    checkin_reminder:   { label: '🔑 Check-in',      cls: 'bg-teal-100 text-teal-700' },
+    checkout_reminder:  { label: '🚪 Checkout',      cls: 'bg-slate-100 text-slate-700' },
+    payment_received:   { label: '💳 Payment',       cls: 'bg-green-100 text-green-700' },
+    payment_failed:     { label: '⚠️ Pmt Failed',   cls: 'bg-red-100 text-red-700' },
+    refund_processed:   { label: '↩️ Refund',        cls: 'bg-purple-100 text-purple-700' },
+    review_request:     { label: '⭐ Review',         cls: 'bg-yellow-100 text-yellow-700' },
+    review_approved:    { label: '✅ Approved',       cls: 'bg-green-100 text-green-700' },
+    review_rejected:    { label: '🚫 Rejected',      cls: 'bg-red-100 text-red-700' },
+    admin_alert:        { label: '🏨 New Booking',   cls: 'bg-orange-100 text-orange-700' },
+    staff_assignment:   { label: '🧹 Housekeeping',  cls: 'bg-blue-100 text-blue-700' },
+    room_maintenance:   { label: '🔧 Maintenance',   cls: 'bg-yellow-100 text-yellow-700' },
+    marketing:          { label: '🎁 Offer',          cls: 'bg-purple-100 text-purple-700' },
+    offer_expiry:       { label: '⏳ Offer Expiry',  cls: 'bg-orange-100 text-orange-700' },
+    contact_reply:      { label: '💬 Inquiry',        cls: 'bg-teal-100 text-teal-700' },
+    system:             { label: '⚙️ System',         cls: 'bg-gray-100 text-gray-700' },
   };
   const cfg = map[type] ?? { label: type, cls: 'bg-gray-100 text-gray-600' };
   return <span className={`px-2 py-0.5 rounded-full text-[10px] font-semibold ${cfg.cls}`}>{cfg.label}</span>;
