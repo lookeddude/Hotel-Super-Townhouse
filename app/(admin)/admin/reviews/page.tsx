@@ -37,9 +37,23 @@ export default function AdminReviewsPage() {
 
   const handleReply = async (id: string) => {
     if (!replyText.trim()) { toast.error('Reply cannot be empty'); return; }
-    const { error } = await addAdminReply(supabase, id, replyText);
+    const { data: updatedReview, error } = await addAdminReply(supabase, id, replyText);
     if (error) { toast.error('Failed to save reply'); return; }
     toast.success('Reply saved');
+
+    // 🔔 Notify the guest that the hotel replied to their review
+    if (updatedReview?.guest_id) {
+      await (supabase as any).from('notifications').insert({
+        user_id: updatedReview.guest_id,
+        type:    'contact_reply',
+        title:   '💬 Hotel Replied to Your Review',
+        body:    `Super Townhouse responded: "${replyText.slice(0, 100)}${replyText.length > 100 ? '…' : ''}"`,
+        channel: 'in_app',
+        is_read: false,
+        data:    { action_url: '/dashboard/bookings', booking_id: updatedReview.booking_id },
+      });
+    }
+
     setReplyingTo(null);
     setReplyText('');
     load();

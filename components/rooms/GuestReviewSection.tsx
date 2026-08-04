@@ -1,11 +1,9 @@
 'use client';
 
 import { useState, useEffect } from 'react';
-import { Star, Send, MessageSquare, CheckCircle, Loader2, LogIn } from 'lucide-react';
+import { Star, MessageSquare, CheckCircle, Loader2 } from 'lucide-react';
 import { useSupabase } from '@/providers/SupabaseProvider';
-import { submitReview, getRoomReviews } from '@/services/reviewService';
-import { toast } from 'sonner';
-import Link from 'next/link';
+import { getRoomReviews } from '@/services/reviewService';
 
 interface Props {
   roomTypeId: string;
@@ -55,26 +53,10 @@ function Avatar({ name }: { name: string }) {
 
 export function GuestReviewSection({ roomTypeId, roomName }: Props) {
   const { supabase } = useSupabase();
-  const [reviews, setReviews]     = useState<any[]>([]);
-  const [loading, setLoading]     = useState(true);
-  const [user, setUser]           = useState<any>(null);
-  const [showForm, setShowForm]   = useState(false);
-  const [submitting, setSubmitting] = useState(false);
-  const [submitted, setSubmitted] = useState(false);
-
-  const [form, setForm] = useState({
-    overall_rating:     0,
-    cleanliness_rating: 0,
-    service_rating:     0,
-    value_rating:       0,
-    title:              '',
-    comment:            '',
-  });
+  const [reviews, setReviews] = useState<any[]>([]);
+  const [loading, setLoading] = useState(true);
 
   useEffect(() => {
-    // Get user
-    (supabase as any).auth.getUser().then(({ data: { user } }: any) => setUser(user));
-    // Load approved reviews
     getRoomReviews(supabase as any, roomTypeId).then(({ data }) => {
       setReviews(data ?? []);
       setLoading(false);
@@ -84,27 +66,6 @@ export function GuestReviewSection({ roomTypeId, roomName }: Props) {
   const avg = reviews.length
     ? (reviews.reduce((s, r) => s + (r.overall_rating ?? 0), 0) / reviews.length).toFixed(1)
     : null;
-
-  const handleSubmit = async (e: React.FormEvent) => {
-    e.preventDefault();
-    if (form.overall_rating === 0) { toast.error('Please select an overall rating'); return; }
-    if (form.comment.trim().length < 10) { toast.error('Please write at least 10 characters'); return; }
-    setSubmitting(true);
-    const { error } = await submitReview(supabase as any, {
-      room_type_id:       roomTypeId,
-      overall_rating:     form.overall_rating,
-      cleanliness_rating: form.cleanliness_rating || undefined,
-      service_rating:     form.service_rating || undefined,
-      value_rating:       form.value_rating || undefined,
-      title:              form.title.trim() || undefined,
-      comment:            form.comment.trim(),
-    });
-    setSubmitting(false);
-    if (error) { toast.error('Failed to submit: ' + (error as any).message); return; }
-    setSubmitted(true);
-    setShowForm(false);
-    toast.success('Thank you! Your review is under review and will appear shortly.');
-  };
 
   return (
     <section className="bg-white rounded-xl border border-outline-variant overflow-hidden">
@@ -124,81 +85,8 @@ export function GuestReviewSection({ roomTypeId, roomName }: Props) {
             )}
           </div>
         </div>
-
-        {/* Write a review CTA */}
-        {!submitted && !showForm && (
-          user ? (
-            <button onClick={() => setShowForm(true)}
-              className="flex items-center gap-2 px-4 py-2 bg-primary text-white text-sm font-semibold rounded-lg hover:opacity-90 transition-opacity">
-              <Star size={15} /> Write a Review
-            </button>
-          ) : (
-            <Link href="/login?redirect=/rooms"
-              className="flex items-center gap-2 px-4 py-2 border border-primary text-primary text-sm font-semibold rounded-lg hover:bg-primary/5 transition-colors">
-              <LogIn size={15} /> Login to Review
-            </Link>
-          )
-        )}
-        {submitted && (
-          <div className="flex items-center gap-2 text-green-600 text-sm font-medium">
-            <CheckCircle size={16} /> Review submitted — pending approval
-          </div>
-        )}
+        <p className="text-xs text-on-surface-variant italic">Reviews from verified guests only</p>
       </div>
-
-      {/* Review Form */}
-      {showForm && (
-        <form onSubmit={handleSubmit} className="p-6 bg-blue-50/40 border-b border-outline-variant space-y-5">
-          <h3 className="font-semibold text-on-surface">Your Review for {roomName}</h3>
-
-          {/* Overall rating — required */}
-          <div>
-            <label className="text-sm font-medium text-on-surface block mb-2">Overall Rating <span className="text-red-500">*</span></label>
-            <StarPicker value={form.overall_rating} onChange={v => setForm(p => ({...p, overall_rating: v}))} size={28} />
-          </div>
-
-          {/* Sub-ratings */}
-          <div className="grid grid-cols-3 gap-4">
-            {([['cleanliness_rating','Cleanliness'],['service_rating','Service'],['value_rating','Value for Money']] as const).map(([key,label]) => (
-              <div key={key}>
-                <label className="text-xs font-medium text-on-surface-variant block mb-1">{label}</label>
-                <StarPicker value={form[key]} onChange={v => setForm(p => ({...p, [key]: v}))} size={18} />
-              </div>
-            ))}
-          </div>
-
-          {/* Title */}
-          <div>
-            <label className="text-sm font-medium text-on-surface block mb-1.5">Review Title <span className="text-on-surface-variant font-normal">(optional)</span></label>
-            <input value={form.title} onChange={e => setForm(p => ({...p, title: e.target.value}))}
-              placeholder="Summarize your experience…"
-              className="w-full px-3 py-2 border border-outline-variant rounded-lg text-sm focus:outline-none focus:border-primary" />
-          </div>
-
-          {/* Comment */}
-          <div>
-            <label className="text-sm font-medium text-on-surface block mb-1.5">Your Review <span className="text-red-500">*</span></label>
-            <textarea value={form.comment} onChange={e => setForm(p => ({...p, comment: e.target.value}))}
-              placeholder="Tell other guests about your stay — what did you love? What could be better?"
-              rows={4} required minLength={10}
-              className="w-full px-3 py-2 border border-outline-variant rounded-lg text-sm focus:outline-none focus:border-primary resize-none" />
-            <p className="text-xs text-on-surface-variant mt-1">{form.comment.length} characters (min 10)</p>
-          </div>
-
-          <div className="flex gap-3">
-            <button type="submit" disabled={submitting}
-              className="flex items-center gap-2 px-5 py-2.5 bg-primary text-white text-sm font-semibold rounded-lg hover:opacity-90 disabled:opacity-60">
-              {submitting ? <Loader2 size={15} className="animate-spin" /> : <Send size={15} />}
-              {submitting ? 'Submitting…' : 'Submit Review'}
-            </button>
-            <button type="button" onClick={() => setShowForm(false)}
-              className="px-4 py-2.5 border border-outline-variant text-sm rounded-lg hover:bg-surface">
-              Cancel
-            </button>
-          </div>
-          <p className="text-xs text-on-surface-variant">Your review will be visible after admin approval (usually within 24 hours).</p>
-        </form>
-      )}
 
       {/* Reviews List */}
       <div className="divide-y divide-outline-variant/40">

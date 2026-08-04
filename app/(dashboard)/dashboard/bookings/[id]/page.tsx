@@ -73,7 +73,7 @@ export default function BookingDetailPage() {
       setInvoice(inv);
       // Check if review already submitted for this booking
       const { data: rev } = await (supabase as any)
-        .from('reviews').select('id, overall_rating, comment').eq('booking_id', id).maybeSingle();
+        .from('reviews').select('id, overall_rating, comment, admin_reply, admin_replied_at').eq('booking_id', id).maybeSingle();
       setExistingReview(rev ?? null);
     }
     setIsLoading(false);
@@ -254,14 +254,20 @@ export default function BookingDetailPage() {
               <Star size={16} className="text-yellow-400" /> Share Your Experience
             </h2>
             {existingReview ? (
-              <div className="text-center py-4">
-                <div className="flex justify-center gap-1 mb-2">
+              <div className="py-3 space-y-3">
+                <div className="flex justify-center gap-1 mb-1">
                   {[1,2,3,4,5].map(s => (
                     <Star key={s} size={20} className={s <= existingReview.overall_rating ? 'fill-yellow-400 text-yellow-400' : 'text-gray-300'} />
                   ))}
                 </div>
-                <p className="text-sm font-medium text-green-600">✅ You've already reviewed this stay</p>
-                <p className="text-xs text-on-surface-variant mt-1 italic">"{existingReview.comment?.slice(0, 80)}..."</p>
+                <p className="text-sm font-medium text-green-600 text-center">✅ You've already reviewed this stay</p>
+                <p className="text-xs text-on-surface-variant text-center italic">"{existingReview.comment?.slice(0, 120)}{existingReview.comment?.length > 120 ? '…' : ''}"</p>
+                {existingReview.admin_reply && (
+                  <div className="mt-2 p-3 bg-primary/5 rounded-lg border-l-2 border-primary">
+                    <p className="text-xs font-semibold text-primary mb-1">💬 Hotel Response</p>
+                    <p className="text-xs text-on-surface-variant leading-relaxed">{existingReview.admin_reply}</p>
+                  </div>
+                )}
               </div>
             ) : reviewSubmitted ? (
               <div className="text-center py-4">
