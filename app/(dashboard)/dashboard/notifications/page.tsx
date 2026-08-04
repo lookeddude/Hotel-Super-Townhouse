@@ -2,7 +2,8 @@
 /**
  * Phase 9 — Full Guest Notification Center with Preferences
  */
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
+import { useRouter } from 'next/navigation';
 import { useNotifications } from '@/hooks/useNotifications';
 import { useSupabase } from '@/providers/SupabaseProvider';
 import { useAuth } from '@/providers/AuthProvider';
@@ -13,7 +14,7 @@ import {
 } from 'lucide-react';
 import { toast } from 'sonner';
 import Link from 'next/link';
-import { useEffect } from 'react';
+
 
 const PREF_ROWS = [
   { type: 'booking_confirmed'  as const, label: 'Booking Updates',       desc: 'Confirmations, modifications, cancellations' },
@@ -62,23 +63,32 @@ function getIconBg(type: string) {
 
 export default function UserNotificationsPage() {
   const { supabase }                                          = useSupabase();
-  const { user }                                              = useAuth();
-  const { notifications: allNotifications, unreadCount: rawUnread, loading, markRead, markAllRead, deleteOne, refresh } = useNotifications(50);
+  const { user, isAdmin }                                     = useAuth();
+  const router                                                = useRouter();
+  const { notifications: allNotifications, loading, markRead, markAllRead, deleteOne, refresh } = useNotifications(50);
   const [tab, setTab]           = useState<'all' | 'unread' | 'preferences'>('all');
   const [prefs, setPrefs]       = useState<any[]>([]);
   const [prefsLoading, setPrefsLoading] = useState(false);
   const [saving, setSaving]     = useState<string | null>(null);
 
-  // ⛔ Never show staff/admin-only notification types on the customer dashboard
+  // 🔒 Staff/admin users should use admin panel notifications, not customer dashboard
+  useEffect(() => {
+    if (isAdmin) router.replace('/admin/notifications');
+  }, [isAdmin, router]);
+
+  // Only show pure customer notification types — never staff/operational alerts
   const CUSTOMER_TYPES = new Set([
     'booking_confirmed', 'booking_cancelled', 'booking_reminder',
     'payment_received',  'payment_failed',    'refund_processed',
     'review_request',    'checkin_reminder',  'checkout_reminder',
-    'marketing',         'system',            'admin_alert',
+    'marketing',         'system',
     'offer_expiry',      'contact_reply',
   ]);
   const notifications = allNotifications.filter(n => CUSTOMER_TYPES.has(n.type));
   const unreadCount   = notifications.filter(n => !n.is_read).length;
+
+  // Don't render anything while redirecting admin
+  if (isAdmin) return null;
 
   const loadPrefs = async () => {
     if (!user?.id) return;
