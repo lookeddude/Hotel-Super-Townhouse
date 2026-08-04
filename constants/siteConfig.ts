@@ -10,8 +10,8 @@ export const SITE_CONFIG = {
     state: 'Karnataka',
     country: 'India',
     pincode: '560048',
-    coordinates: { lat: 12.9279, lng: 77.6271 },
-    googleMapsUrl: 'https://www.google.com/travel/hotels/s/wwt7siZmQoKJDQ6f7',
+    coordinates: { lat: 12.988031, lng: 77.733833 },
+    googleMapsUrl: 'https://maps.app.goo.gl/iRQ79dWgyT8pEbJH7',
   },
   contact: {
     phone: '+91 62091 24788',
