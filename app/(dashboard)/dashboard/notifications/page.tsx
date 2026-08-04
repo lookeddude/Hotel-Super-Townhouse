@@ -3,7 +3,6 @@
  * Phase 9 — Full Guest Notification Center with Preferences
  */
 import { useState, useEffect } from 'react';
-import { useRouter } from 'next/navigation';
 import { useNotifications } from '@/hooks/useNotifications';
 import { useSupabase } from '@/providers/SupabaseProvider';
 import { useAuth } from '@/providers/AuthProvider';
@@ -63,20 +62,15 @@ function getIconBg(type: string) {
 
 export default function UserNotificationsPage() {
   const { supabase }                                          = useSupabase();
-  const { user, isAdmin }                                     = useAuth();
-  const router                                                = useRouter();
+  const { user }                                              = useAuth();
   const { notifications: allNotifications, loading, markRead, markAllRead, deleteOne, refresh } = useNotifications(50);
   const [tab, setTab]           = useState<'all' | 'unread' | 'preferences'>('all');
   const [prefs, setPrefs]       = useState<any[]>([]);
   const [prefsLoading, setPrefsLoading] = useState(false);
   const [saving, setSaving]     = useState<string | null>(null);
 
-  // 🔒 Staff/admin users should use admin panel notifications, not customer dashboard
-  useEffect(() => {
-    if (isAdmin) router.replace('/admin/notifications');
-  }, [isAdmin, router]);
-
-  // Only show pure customer notification types — never staff/operational alerts
+  // Only show personal customer notifications — never staff/operational alerts
+  // Works for both regular customers AND staff viewing their personal dashboard
   const CUSTOMER_TYPES = new Set([
     'booking_confirmed', 'booking_cancelled', 'booking_reminder',
     'payment_received',  'payment_failed',    'refund_processed',
@@ -86,9 +80,6 @@ export default function UserNotificationsPage() {
   ]);
   const notifications = allNotifications.filter(n => CUSTOMER_TYPES.has(n.type));
   const unreadCount   = notifications.filter(n => !n.is_read).length;
-
-  // Don't render anything while redirecting admin
-  if (isAdmin) return null;
 
   const loadPrefs = async () => {
     if (!user?.id) return;
