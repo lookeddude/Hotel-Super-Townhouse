@@ -5,7 +5,7 @@
  */
 import { useState, useRef, useEffect } from 'react';
 import Link from 'next/link';
-import { usePathname } from 'next/navigation';
+import { useAuth } from '@/providers/AuthProvider';
 import {
   Bell, X, Check, CheckCheck, Trash2, ExternalLink,
   CalendarDays, CreditCard, Star, AlertTriangle, Tag,
@@ -119,13 +119,11 @@ function NotificationItem({
 
 export function NotificationBell() {
   const { notifications, unreadCount, loading, markRead, markAllRead, deleteOne } = useNotifications(20);
+  const { isAdmin } = useAuth();
   const [open, setOpen] = useState(false);
   const panelRef = useRef<HTMLDivElement>(null);
-  const pathname = usePathname();
-  // If we're anywhere inside /admin, link to the admin notifications page
-  const notifPage = pathname.startsWith('/admin')
-    ? '/admin/notifications'
-    : '/dashboard/notifications';
+  // Admin/staff always see admin notifications; customers see their own dashboard
+  const notifPage = isAdmin ? '/admin/notifications' : '/dashboard/notifications';
 
   useEffect(() => {
     const handler = (e: MouseEvent) => {
