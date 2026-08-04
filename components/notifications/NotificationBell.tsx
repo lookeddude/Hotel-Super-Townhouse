@@ -5,6 +5,7 @@
  */
 import { useState, useRef, useEffect } from 'react';
 import Link from 'next/link';
+import { usePathname } from 'next/navigation';
 import {
   Bell, X, Check, CheckCheck, Trash2, ExternalLink,
   CalendarDays, CreditCard, Star, AlertTriangle, Tag,
@@ -120,6 +121,11 @@ export function NotificationBell() {
   const { notifications, unreadCount, loading, markRead, markAllRead, deleteOne } = useNotifications(20);
   const [open, setOpen] = useState(false);
   const panelRef = useRef<HTMLDivElement>(null);
+  const pathname = usePathname();
+  // If we're anywhere inside /admin, link to the admin notifications page
+  const notifPage = pathname.startsWith('/admin')
+    ? '/admin/notifications'
+    : '/dashboard/notifications';
 
   useEffect(() => {
     const handler = (e: MouseEvent) => {
@@ -191,7 +197,7 @@ export function NotificationBell() {
 
           {/* Footer */}
           <div className="border-t border-outline-variant px-4 py-2.5 flex items-center justify-between">
-            <Link href="/dashboard/notifications"
+            <Link href={notifPage}
               onClick={() => setOpen(false)}
               className="text-xs text-primary hover:underline">
               View all notifications
