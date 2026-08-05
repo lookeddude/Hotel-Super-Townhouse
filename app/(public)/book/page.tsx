@@ -1122,13 +1122,12 @@ function BookPageInner() {
   const [submitting, setSubmitting] = useState(false);
 
   const [state, setState] = useState<WizardState>(() => {
-    const checkIn  = params.get('checkIn')  ?? todayStr();
-    const checkOut = params.get('checkOut') ?? tomorrowStr();
-    const adults   = parseInt(params.get('adults') ?? '1', 10) || 1;
-
+    // Initialize dates as empty — will be set to today/tomorrow in useEffect
+    // (avoids SSR hydration mismatch from build-time vs runtime date)
+    const adults = parseInt(params.get('adults') ?? '1', 10) || 1;
     return {
-      checkIn,
-      checkOut,
+      checkIn:  params.get('checkIn')  ?? '',
+      checkOut: params.get('checkOut') ?? '',
       adults: Math.min(Math.max(adults, 1), 4),
       children: 0,
       selectedRoom: null,
@@ -1149,6 +1148,18 @@ function BookPageInner() {
       bookingTotal:   null,
     };
   });
+
+  // ── Set default dates on client mount ──────────────────────────────────────
+  // Runs only in the browser — guarantees correct local today/tomorrow dates
+  useEffect(() => {
+    setState(prev => ({
+      ...prev,
+      checkIn:  prev.checkIn  || params.get('checkIn')  || todayStr(),
+      checkOut: prev.checkOut || params.get('checkOut') || tomorrowStr(),
+    }));
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
 
   // ── Auth guard ─────────────────────────────────────────────────────────────
 
