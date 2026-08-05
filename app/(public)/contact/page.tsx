@@ -132,17 +132,21 @@ export default async function ContactPage() {
             <div className="bg-surface-container rounded-lg overflow-hidden border border-outline-variant">
               {hotel?.latitude && hotel?.longitude ? (
                 <div className="flex flex-col">
-                  {/* Embedded map — shows hotel pin */}
-                  <iframe
-                    title="Super Townhouse Location"
-                    src={`https://maps.google.com/maps?q=Super+Townhouse,${hotel.latitude},${hotel.longitude}&z=17&output=embed`}
-                    width="100%"
-                    height="256"
-                    style={{ border: 0, display: 'block' }}
-                    allowFullScreen
-                    loading="lazy"
-                    referrerPolicy="no-referrer-when-downgrade"
-                  />
+                  {/* Embedded map — overflow-hidden clips the iframe's built-in "View larger map" blue link */}
+                  <div className="relative overflow-hidden" style={{ height: '256px' }}>
+                    <iframe
+                      title="Super Townhouse Location"
+                      src={`https://maps.google.com/maps?q=Super+Townhouse,${hotel.latitude},${hotel.longitude}&z=17&output=embed`}
+                      width="100%"
+                      height="290"
+                      style={{ border: 0, display: 'block', marginTop: '-1px' }}
+                      allowFullScreen
+                      loading="lazy"
+                      referrerPolicy="no-referrer-when-downgrade"
+                    />
+                    {/* Cover the iframe's bottom bar that contains the blue "View larger map" link */}
+                    <div className="absolute bottom-0 left-0 right-0 bg-white" style={{ height: '34px' }} />
+                  </div>
                   {/* Open in Google Maps — uses exact saved place link */}
                   <a
                     href={SITE_CONFIG.location.googleMapsUrl}
