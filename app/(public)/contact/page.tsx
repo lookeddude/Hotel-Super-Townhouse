@@ -129,37 +129,36 @@ export default async function ContactPage() {
             )}
 
             {/* Map */}
-            <div className="bg-surface-container rounded-lg overflow-hidden border border-outline-variant">
+            <div className="rounded-lg overflow-hidden border border-outline-variant">
               {hotel?.latitude && hotel?.longitude ? (
                 <div className="flex flex-col">
-                  {/* Embedded map — overflow-hidden clips the iframe's built-in "View larger map" blue link */}
-                  <div className="relative overflow-hidden" style={{ height: '256px' }}>
+                  {/* Iframe is 300px tall but container clips to 250px,
+                      hiding the bottom 50px where Google's blue "View larger map" link lives */}
+                  <div style={{ height: '250px', overflow: 'hidden' }}>
                     <iframe
                       title="Super Townhouse Location"
-                      src={`https://maps.google.com/maps?q=Super+Townhouse,${hotel.latitude},${hotel.longitude}&z=17&output=embed`}
+                      src={`https://maps.google.com/maps?q=${parseFloat(hotel.latitude)},${parseFloat(hotel.longitude)}&z=17&output=embed`}
                       width="100%"
-                      height="290"
-                      style={{ border: 0, display: 'block', marginTop: '-1px' }}
+                      height="300"
+                      style={{ border: 0, display: 'block' }}
                       allowFullScreen
                       loading="lazy"
                       referrerPolicy="no-referrer-when-downgrade"
                     />
-                    {/* Cover the iframe's bottom bar that contains the blue "View larger map" link */}
-                    <div className="absolute bottom-0 left-0 right-0 bg-white" style={{ height: '34px' }} />
                   </div>
-                  {/* Open in Google Maps — uses exact saved place link */}
+                  {/* Single red "Open in Google Maps" button using exact saved place link */}
                   <a
                     href={SITE_CONFIG.location.googleMapsUrl}
                     target="_blank"
                     rel="noopener noreferrer"
-                    className="flex items-center justify-center gap-2 py-2 text-primary text-sm font-medium hover:bg-primary/5 transition-colors"
+                    className="flex items-center justify-center gap-2 py-2.5 text-primary text-sm font-medium bg-white border-t border-outline-variant hover:bg-primary/5 transition-colors"
                   >
                     <MapPin size={14} />
                     Open in Google Maps ↗
                   </a>
                 </div>
               ) : (
-                <div className="h-64 flex flex-col items-center justify-center text-on-surface-variant gap-3">
+                <div className="h-64 flex flex-col items-center justify-center text-on-surface-variant gap-3 bg-surface-container">
                   <MapPin size={32} className="text-primary" />
                   <p className="text-sm text-center">CA, Plot 87, near Aster Hospital,<br/>Sadara Mangala Industrial Area, Bengaluru 560048</p>
                   <a href={SITE_CONFIG.location.googleMapsUrl} target="_blank" rel="noopener noreferrer" className="text-primary text-sm underline">
