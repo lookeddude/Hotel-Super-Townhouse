@@ -7,6 +7,7 @@ import { useForm } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import { toast } from 'sonner';
 import { Eye, EyeOff, Loader2, CheckCircle } from 'lucide-react';
+import { PhoneInput } from '@/components/shared/PhoneInput';
 
 import { registerSchema, type RegisterValues } from '@/lib/validations/authSchema';
 import { signUpWithEmail } from '@/lib/supabase/auth';
@@ -26,6 +27,7 @@ export default function RegisterPage() {
     register,
     handleSubmit,
     watch,
+    setValue,
     formState: { errors },
   } = useForm<RegisterValues>({
     resolver: zodResolver(registerSchema),
@@ -164,18 +166,11 @@ export default function RegisterPage() {
               <label htmlFor="reg-phone" className="text-label-md text-on-surface">
                 Phone Number
               </label>
-              <input
+              <PhoneInput
                 id="reg-phone"
-                type="tel"
-                placeholder="+91 99999 00000"
-                autoComplete="tel"
+                onChange={(val) => setValue('phone', val, { shouldValidate: true })}
+                error={!!errors.phone}
                 disabled={isSubmitting}
-                {...register('phone')}
-                className={`w-full px-4 py-2.5 border rounded-lg text-sm focus:outline-none transition-colors disabled:opacity-50 ${
-                  errors.phone
-                    ? 'border-error focus:border-error'
-                    : 'border-outline-variant focus:border-on-surface'
-                }`}
               />
               {errors.phone && <p className="text-xs text-error">{errors.phone.message}</p>}
             </div>

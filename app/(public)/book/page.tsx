@@ -26,6 +26,8 @@ import {
   ArrowRight,
 } from 'lucide-react';
 
+import { PhoneInput } from '@/components/shared/PhoneInput';
+
 import { useSupabase } from '@/providers/SupabaseProvider';
 import { useAuth } from '@/providers/AuthProvider';
 import { getAvailableRooms, createBooking } from '@/services/bookingService';
@@ -604,16 +606,10 @@ function Step3GuestDetails({ state, onChange, onNext, onBack, userEmail, userNam
           <label className="block text-sm font-semibold text-on-surface mb-1.5">
             Phone Number <span className="text-primary">*</span>
           </label>
-          <input
-            type="tel"
+          <PhoneInput
             value={guest.phone}
-            onChange={(e) => updateGuest({ phone: e.target.value })}
-            placeholder="+91 98765 43210"
-            className={`
-              w-full px-3 py-2.5 rounded-lg border text-sm bg-white text-on-surface
-              focus:outline-none focus:ring-2 focus:ring-primary/30 focus:border-primary transition-colors
-              ${errors.phone ? 'border-error' : 'border-outline-variant'}
-            `}
+            onChange={(val) => updateGuest({ phone: val })}
+            error={!!errors.phone}
           />
           {errors.phone && <p className="text-xs text-error mt-1 flex items-center gap-1"><AlertCircle size={11} />{errors.phone}</p>}
         </div>

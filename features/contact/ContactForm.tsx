@@ -2,6 +2,8 @@
 
 import { useState } from 'react';
 import { Send, CheckCircle, MessageCircle } from 'lucide-react';
+import { PhoneInput } from '@/components/shared/PhoneInput';
+
 import { useSupabase } from '@/providers/SupabaseProvider';
 import { submitContactForm } from '@/services/contactService';
 import { toast } from 'sonner';
@@ -103,9 +105,11 @@ export function ContactForm() {
         <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
           <div className="space-y-1.5">
             <label htmlFor="phone" className="text-sm font-medium text-on-surface">Phone Number</label>
-            <input id="phone" type="tel" placeholder="+91 99999 00000"
-              value={form.phone} onChange={e => setForm(p => ({ ...p, phone: e.target.value }))}
-              className={INPUT} />
+            <PhoneInput
+              id="phone"
+              value={form.phone}
+              onChange={val => setForm(p => ({ ...p, phone: val }))}
+            />
           </div>
           <div className="space-y-1.5">
             <label htmlFor="whatsapp" className="text-sm font-medium text-on-surface flex items-center gap-1.5">
@@ -113,9 +117,12 @@ export function ContactForm() {
               WhatsApp Number
               <span className="text-[10px] text-green-600 bg-green-50 px-1.5 py-0.5 rounded-full font-medium">Recommended</span>
             </label>
-            <input id="whatsapp" type="tel" placeholder="+91 99999 00000 (for faster reply)"
-              value={form.whatsapp} onChange={e => setForm(p => ({ ...p, whatsapp: e.target.value }))}
-              className={INPUT} />
+            <PhoneInput
+              id="whatsapp"
+              value={form.whatsapp}
+              placeholder="99999 00000 (faster reply)"
+              onChange={val => setForm(p => ({ ...p, whatsapp: val }))}
+            />
           </div>
         </div>
 
