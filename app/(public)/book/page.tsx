@@ -373,12 +373,16 @@ function Step2RoomSelection({ state, onChange, onNext, onBack }: Step2Props) {
 
   // Apply room type filter unless user chose to see all
   const activeFilter = !showAll && state.roomTypeId;
-  const rooms = activeFilter
+  // Sort by effective price ascending: cheapest first, most expensive last
+  // This is fully dynamic — if prices change in admin, order updates automatically
+  const rooms = (activeFilter
     ? allRooms.filter(r => r.room_type_id === state.roomTypeId)
-    : allRooms;
+    : allRooms
+  ).slice().sort((a, b) => effectivePrice(a) - effectivePrice(b));
 
   // Name of the selected category for display
   const categoryName = allRooms.find(r => r.room_type_id === state.roomTypeId)?.room_type_name ?? '';
+
 
   function handleSelect(room: AvailableRoom) {
     onChange({ selectedRoom: room });
