@@ -17,7 +17,11 @@ interface Props {
 
 export function RoomBookingWidget({ roomType, rooms, effectivePrice }: Props) {
   const router = useRouter();
-  const today = new Date().toISOString().split('T')[0];
+  // Use local date to avoid wrong date for IST users (not UTC toISOString)
+  const today = (() => {
+    const d = new Date();
+    return `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}-${String(d.getDate()).padStart(2,'0')}`;
+  })();
   const [checkIn, setCheckIn] = useState('');
   const [checkOut, setCheckOut] = useState('');
   const [adults, setAdults] = useState(1);

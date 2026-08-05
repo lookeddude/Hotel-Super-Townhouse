@@ -74,6 +74,7 @@ interface WizardState {
   checkOut: string;
   adults: number;
   children: number;
+  roomTypeId: string | null;   // pre-filter: only show this room category
   selectedRoom: AvailableRoom | null;
   guest: GuestDetails;
   promoCode: string;
@@ -346,9 +347,10 @@ interface Step2Props {
 
 function Step2RoomSelection({ state, onChange, onNext, onBack }: Step2Props) {
   const { supabase } = useSupabase();
-  const [rooms, setRooms] = useState<AvailableRoom[]>([]);
+  const [allRooms, setAllRooms] = useState<AvailableRoom[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  const [showAll, setShowAll] = useState(false); // override category filter
 
   useEffect(() => {
     (async () => {
@@ -363,11 +365,20 @@ function Step2RoomSelection({ state, onChange, onNext, onBack }: Step2Props) {
       if (err) {
         setError('Failed to load available rooms. Please try again.');
       } else {
-        setRooms((data as AvailableRoom[]) ?? []);
+        setAllRooms((data as AvailableRoom[]) ?? []);
       }
       setLoading(false);
     })();
   }, [supabase, state.checkIn, state.checkOut, state.adults]);
+
+  // Apply room type filter unless user chose to see all
+  const activeFilter = !showAll && state.roomTypeId;
+  const rooms = activeFilter
+    ? allRooms.filter(r => r.room_type_id === state.roomTypeId)
+    : allRooms;
+
+  // Name of the selected category for display
+  const categoryName = allRooms.find(r => r.room_type_id === state.roomTypeId)?.room_type_name ?? '';
 
   function handleSelect(room: AvailableRoom) {
     onChange({ selectedRoom: room });
@@ -394,6 +405,22 @@ function Step2RoomSelection({ state, onChange, onNext, onBack }: Step2Props) {
         </p>
       </div>
 
+      {/* Active category filter badge */}
+      {activeFilter && categoryName && (
+        <div className="flex items-center gap-2 bg-primary/5 border border-primary/20 rounded-lg px-4 py-2.5">
+          <BedDouble size={14} className="text-primary shrink-0" />
+          <span className="text-sm text-on-surface flex-1">
+            Showing <strong>{categoryName}</strong> rooms only
+          </span>
+          <button
+            type="button"
+            onClick={() => setShowAll(true)}
+            className="text-xs text-primary hover:underline font-medium shrink-0"
+          >
+            Show all categories
+          </button>
+        </div>
+      )}
       {loading && (
         <div className="flex flex-col items-center justify-center py-16 gap-3 text-on-surface-variant">
           <Loader2 size={32} className="animate-spin text-primary" />
@@ -411,12 +438,26 @@ function Step2RoomSelection({ state, onChange, onNext, onBack }: Step2Props) {
       {!loading && !error && rooms.length === 0 && (
         <div className="text-center py-16">
           <BedDouble size={40} className="mx-auto text-outline-variant mb-3" />
-          <p className="font-semibold text-on-surface">No rooms available</p>
-          <p className="text-sm text-on-surface-variant mt-1">Try different dates or reduce the number of guests.</p>
-          <button
-            onClick={onBack}
-            className="mt-4 text-sm text-primary hover:underline font-semibold"
-          >
+          {activeFilter && allRooms.length > 0 ? (
+            // Filtered rooms are empty but other rooms exist
+            <>
+              <p className="font-semibold text-on-surface">No {categoryName} rooms available</p>
+              <p className="text-sm text-on-surface-variant mt-1">This room category is fully booked for your dates.</p>
+              <button
+                onClick={() => setShowAll(true)}
+                className="mt-3 text-sm text-primary hover:underline font-semibold"
+              >
+                View all available room categories
+              </button>
+            </>
+          ) : (
+            // Truly no rooms at all
+            <>
+              <p className="font-semibold text-on-surface">No rooms available</p>
+              <p className="text-sm text-on-surface-variant mt-1">Try different dates or reduce the number of guests.</p>
+            </>
+          )}
+          <button onClick={onBack} className="mt-4 text-sm text-primary hover:underline font-semibold block mx-auto">
             ← Change Dates
           </button>
         </div>
@@ -1029,6 +1070,11 @@ interface Step5Props {
 function Step5Confirmation({ state }: Step5Props) {
   const router = useRouter();
   const [countdown, setCountdown] = useState(5);
+  // Use local date (not UTC) to avoid wrong date for IST users
+  const today = (() => {
+    const d = new Date();
+    return `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}-${String(d.getDate()).padStart(2,'0')}`;
+  })();
 
   useEffect(() => {
     const interval = setInterval(() => {
@@ -1126,8 +1172,9 @@ function BookPageInner() {
     // (avoids SSR hydration mismatch from build-time vs runtime date)
     const adults = parseInt(params.get('adults') ?? '1', 10) || 1;
     return {
-      checkIn:  params.get('checkIn')  ?? '',
-      checkOut: params.get('checkOut') ?? '',
+      checkIn:    params.get('checkIn')     ?? '',
+      checkOut:   params.get('checkOut')    ?? '',
+      roomTypeId: params.get('roomTypeId')  ?? null,
       adults: Math.min(Math.max(adults, 1), 4),
       children: 0,
       selectedRoom: null,
@@ -1154,8 +1201,9 @@ function BookPageInner() {
   useEffect(() => {
     setState(prev => ({
       ...prev,
-      checkIn:  prev.checkIn  || params.get('checkIn')  || todayStr(),
-      checkOut: prev.checkOut || params.get('checkOut') || tomorrowStr(),
+      checkIn:    prev.checkIn    || params.get('checkIn')    || todayStr(),
+      checkOut:   prev.checkOut   || params.get('checkOut')   || tomorrowStr(),
+      roomTypeId: prev.roomTypeId ?? params.get('roomTypeId') ?? null,
     }));
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
