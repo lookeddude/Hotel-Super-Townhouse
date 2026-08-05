@@ -96,14 +96,27 @@ const STEPS = [
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────
 
-function todayStr() {
-  return new Date().toISOString().split('T')[0];
+function localDateStr(offsetDays = 0) {
+  const d = new Date();
+  d.setDate(d.getDate() + offsetDays);
+  // Use local year/month/day — NOT toISOString() which is UTC
+  const y = d.getFullYear();
+  const m = String(d.getMonth() + 1).padStart(2, '0');
+  const day = String(d.getDate()).padStart(2, '0');
+  return `${y}-${m}-${day}`;
 }
 
-function tomorrowStr() {
-  const d = new Date();
+function todayStr()    { return localDateStr(0); }
+function tomorrowStr() { return localDateStr(1); }
+
+// Returns the day after a given YYYY-MM-DD string
+function dayAfter(dateStr: string) {
+  const d = new Date(dateStr + 'T00:00:00');
   d.setDate(d.getDate() + 1);
-  return d.toISOString().split('T')[0];
+  const y = d.getFullYear();
+  const m = String(d.getMonth() + 1).padStart(2, '0');
+  const day = String(d.getDate()).padStart(2, '0');
+  return `${y}-${m}-${day}`;
 }
 
 function effectivePrice(room: AvailableRoom) {
@@ -208,7 +221,15 @@ function Step1DatesGuests({ state, onChange, onNext }: Step1Props) {
               type="date"
               min={todayStr()}
               value={state.checkIn}
-              onChange={(e) => onChange({ checkIn: e.target.value })}
+              onChange={(e) => {
+                const newCheckIn = e.target.value;
+                // If check-out is not at least 1 day after new check-in, auto-advance it
+                const updates: Partial<typeof state> = { checkIn: newCheckIn };
+                if (!state.checkOut || state.checkOut <= newCheckIn) {
+                  updates.checkOut = dayAfter(newCheckIn);
+                }
+                onChange(updates);
+              }}
               className={`
                 w-full pl-9 pr-3 py-2.5 rounded-lg border text-sm bg-white text-on-surface
                 focus:outline-none focus:ring-2 focus:ring-primary/30 focus:border-primary transition-colors
