@@ -129,34 +129,36 @@ export default async function ContactPage() {
             )}
 
             {/* Map */}
-            <div className="h-64 bg-surface-container rounded-lg overflow-hidden border border-outline-variant">
-              {hotel?.latitude && hotel?.longitude ? (() => {
-                const lat = hotel.latitude;
-                const lng = hotel.longitude;
-                const mapsUrl = `https://www.google.com/maps?q=${lat},${lng}&z=16`;
-                return (
-                  <>
-                    <iframe
-                      title="Hotel Location"
-                      src={`https://maps.google.com/maps?q=${lat},${lng}&z=16&output=embed`}
-                      width="100%"
-                      height="100%"
-                      style={{ border: 0 }}
-                      allowFullScreen
-                      loading="lazy"
-                    />
-                    <div className="text-center py-1">
-                      <a href={mapsUrl} target="_blank" rel="noopener noreferrer" className="text-primary text-xs underline">
-                        Open in Google Maps ↗
-                      </a>
-                    </div>
-                  </>
-                );
-              })() : (
-                <div className="h-full flex flex-col items-center justify-center text-on-surface-variant gap-3">
+            <div className="bg-surface-container rounded-lg overflow-hidden border border-outline-variant">
+              {hotel?.latitude && hotel?.longitude ? (
+                <div className="flex flex-col">
+                  {/* Embedded map — shows hotel pin */}
+                  <iframe
+                    title="Super Townhouse Location"
+                    src={`https://maps.google.com/maps?q=Super+Townhouse,${hotel.latitude},${hotel.longitude}&z=17&output=embed`}
+                    width="100%"
+                    height="256"
+                    style={{ border: 0, display: 'block' }}
+                    allowFullScreen
+                    loading="lazy"
+                    referrerPolicy="no-referrer-when-downgrade"
+                  />
+                  {/* Open in Google Maps — uses exact saved place link */}
+                  <a
+                    href={SITE_CONFIG.location.googleMapsUrl}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="flex items-center justify-center gap-2 py-2 text-primary text-sm font-medium hover:bg-primary/5 transition-colors"
+                  >
+                    <MapPin size={14} />
+                    Open in Google Maps ↗
+                  </a>
+                </div>
+              ) : (
+                <div className="h-64 flex flex-col items-center justify-center text-on-surface-variant gap-3">
                   <MapPin size={32} className="text-primary" />
                   <p className="text-sm text-center">CA, Plot 87, near Aster Hospital,<br/>Sadara Mangala Industrial Area, Bengaluru 560048</p>
-                  <a href="https://www.google.com/maps/search/Super+Townhouse+Whitefield+Bengaluru" target="_blank" rel="noopener noreferrer" className="text-primary text-sm underline">
+                  <a href={SITE_CONFIG.location.googleMapsUrl} target="_blank" rel="noopener noreferrer" className="text-primary text-sm underline">
                     Open in Google Maps ↗
                   </a>
                 </div>
