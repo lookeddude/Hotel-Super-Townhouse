@@ -23,7 +23,7 @@ export default async function RoomsPage() {
       .from('room_types')
       .select('id, name, slug, description, short_description, base_price, max_occupancy, size_sqft, bed_type, view_type, breakfast_included, thumbnail_url, image_url, images, display_order')
       .eq('is_active', true)
-      .order('display_order', { ascending: true });
+      .order('base_price', { ascending: true });
 
     if (!error && data) {
       roomTypes = data.map((r: any) => ({
