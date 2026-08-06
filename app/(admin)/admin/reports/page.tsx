@@ -2,67 +2,96 @@
 /**
  * app/(admin)/admin/reports/page.tsx
  * Revenue reports — date range, daily revenue chart, method breakdown, CSV export.
+ * Fixed: dynamic p_days, quick-range auto-fetch, IST local date, named loadReports.
  */
-import { useEffect, useState, useCallback } from 'react';
+import { useEffect, useState, useCallback, useRef } from 'react';
 import { useSupabase } from '@/providers/SupabaseProvider';
 import { formatINR } from '@/services/pricingService';
-import { Download, RefreshCw, TrendingUp, BarChart2 } from 'lucide-react';
+import { Download, RefreshCw, TrendingUp, BarChart2, AlertTriangle } from 'lucide-react';
 
 interface DailyRevenue { day: string; revenue: number; count: number; }
 interface Summary { total: number; count: number; avg: number; online: number; cash: number; refunds: number; }
 interface NoShowData { count: number; lostRevenue: number; rate: number; bookings: any[]; }
 
+/** Get today's date in local IST as YYYY-MM-DD (avoids UTC offset issues) */
+function getLocalToday() {
+  const d = new Date();
+  return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
+}
+
+function getLocalDaysAgo(days: number) {
+  const d = new Date();
+  d.setDate(d.getDate() - days);
+  return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
+}
+
 export default function AdminReportsPage() {
   const { supabase } = useSupabase();
-  const today = new Date();
-  const thirtyDaysAgo = new Date(today); thirtyDaysAgo.setDate(today.getDate() - 30);
 
-  const [dateFrom, setDateFrom] = useState(thirtyDaysAgo.toISOString().slice(0, 10));
-  const [dateTo,   setDateTo]   = useState(today.toISOString().slice(0, 10));
+  const [dateFrom, setDateFrom] = useState(() => getLocalDaysAgo(30));
+  const [dateTo,   setDateTo]   = useState(() => getLocalToday());
   const [daily,    setDaily]    = useState<DailyRevenue[]>([]);
   const [summary,  setSummary]  = useState<Summary | null>(null);
   const [noShowData, setNoShowData] = useState<NoShowData | null>(null);
   const [loading,  setLoading]  = useState(false);
 
-  const fetch = useCallback(async () => {
+  /**
+   * loadReports — accepts optional override dates so quick-range buttons
+   * can pass new dates directly without waiting for state to update.
+   */
+  const loadReports = useCallback(async (overrideFrom?: string, overrideTo?: string) => {
+    const from = overrideFrom ?? dateFrom;
+    const to   = overrideTo   ?? dateTo;
     setLoading(true);
     const db = supabase as any;
 
-    // Daily revenue
-    const { data: dailyData } = await db.rpc('get_daily_revenue', { p_days: 90 });
-    setDaily((dailyData ?? []).filter((d: DailyRevenue) => d.day >= dateFrom && d.day <= dateTo));
+    // Compute p_days dynamically so we never miss data for long ranges
+    const msPerDay  = 1000 * 60 * 60 * 24;
+    const daysDiff  = Math.ceil((new Date(to).getTime() - new Date(from).getTime()) / msPerDay);
+    const pDays     = Math.max(daysDiff + 2, 7); // buffer of +2 days
 
-    // Summary stats
+    // ── Daily revenue from RPC ────────────────────────────────────────────
+    const { data: dailyRaw } = await db.rpc('get_daily_revenue', { p_days: pDays });
+    const filtered = (dailyRaw ?? []).filter((d: DailyRevenue) => d.day >= from && d.day <= to);
+    setDaily(filtered);
+
+    // ── Summary stats from payments table ────────────────────────────────
     const { data: payments } = await db
       .from('payments')
       .select('amount, method, status, refund_amount')
       .eq('status', 'paid')
-      .gte('paid_at', dateFrom)
-      .lte('paid_at', dateTo + 'T23:59:59');
+      .gte('paid_at', from)
+      .lte('paid_at', to + 'T23:59:59.999+05:30');
 
     if (payments) {
-      const total = payments.reduce((s: number, p: any) => s + Number(p.amount), 0);
-      const online = payments.filter((p: any) => p.method === 'online').reduce((s: number, p: any) => s + Number(p.amount), 0);
-      const cash = payments.filter((p: any) => ['cash','pay_at_hotel'].includes(p.method)).reduce((s: number, p: any) => s + Number(p.amount), 0);
+      const total   = payments.reduce((s: number, p: any) => s + Number(p.amount), 0);
+      const online  = payments
+        .filter((p: any) => ['online', 'upi', 'card', 'bank_transfer'].includes(p.method))
+        .reduce((s: number, p: any) => s + Number(p.amount), 0);
+      const cash    = payments
+        .filter((p: any) => ['cash', 'pay_at_hotel'].includes(p.method))
+        .reduce((s: number, p: any) => s + Number(p.amount), 0);
       const refunds = payments.reduce((s: number, p: any) => s + Number(p.refund_amount ?? 0), 0);
       setSummary({ total, count: payments.length, avg: payments.length ? total / payments.length : 0, online, cash, refunds });
+    } else {
+      setSummary(null);
     }
 
-    // No-show analysis for selected date range
+    // ── No-show analysis ──────────────────────────────────────────────────
     const { data: noShows } = await db
       .from('bookings')
       .select('id, booking_reference, check_in, check_out, total_amount, profiles:guest_id(full_name)')
       .eq('status', 'no_show')
-      .gte('check_in', dateFrom)
-      .lte('check_in', dateTo);
+      .gte('check_in', from)
+      .lte('check_in', to);
+
     if (noShows) {
       const nsLost = noShows.reduce((s: number, b: any) => s + Number(b.total_amount ?? 0), 0);
-      // Total bookings in range for rate calculation
       const { count: totalInRange } = await db
         .from('bookings')
         .select('id', { count: 'exact', head: true })
-        .gte('check_in', dateFrom)
-        .lte('check_in', dateTo)
+        .gte('check_in', from)
+        .lte('check_in', to)
         .neq('status', 'cancelled');
       const rate = totalInRange ? Math.round((noShows.length / totalInRange) * 100) : 0;
       setNoShowData({ count: noShows.length, lostRevenue: nsLost, rate, bookings: noShows });
@@ -71,20 +100,68 @@ export default function AdminReportsPage() {
     setLoading(false);
   }, [supabase, dateFrom, dateTo]);
 
-  useEffect(() => { fetch(); }, []);
+  // Run once on mount
+  useEffect(() => { loadReports(); }, []); // eslint-disable-line react-hooks/exhaustive-deps
 
-  function exportCSV() {
-    const rows = [['Date', 'Revenue (INR)', 'Transactions']];
-    daily.forEach(d => rows.push([d.day, String(d.revenue), String(d.count)]));
+  // ── CSV export — revenue daily + summary row ──────────────────────────
+  function exportRevenueCSV() {
+    const rows: string[][] = [
+      ['Date', 'Revenue (INR)', 'Transactions', 'Avg Per Transaction'],
+    ];
+    daily.forEach(d => rows.push([
+      d.day,
+      String(Number(d.revenue).toFixed(2)),
+      String(d.count),
+      d.count > 0 ? String((Number(d.revenue) / d.count).toFixed(2)) : '0',
+    ]));
+    // Summary row
+    const totalRev = daily.reduce((s, d) => s + Number(d.revenue), 0);
+    const totalTxn = daily.reduce((s, d) => s + d.count, 0);
+    rows.push(['TOTAL', String(totalRev.toFixed(2)), String(totalTxn), totalTxn > 0 ? String((totalRev / totalTxn).toFixed(2)) : '0']);
     const csv = rows.map(r => r.join(',')).join('\n');
-    const blob = new Blob([csv], { type: 'text/csv' });
+    const blob = new Blob(['\uFEFF' + csv], { type: 'text/csv;charset=utf-8;' });
     const url = URL.createObjectURL(blob);
-    const a = document.createElement('a'); a.href = url;
-    a.download = `revenue_${dateFrom}_${dateTo}.csv`; a.click();
+    const a = document.createElement('a');
+    a.href = url; a.download = `revenue_${dateFrom}_to_${dateTo}.csv`; a.click();
+    URL.revokeObjectURL(url);
+  }
+
+  // ── CSV export — no-show bookings ─────────────────────────────────────
+  function exportNoShowCSV() {
+    if (!noShowData?.bookings.length) return;
+    const rows: string[][] = [
+      ['Ref #', 'Guest Name', 'Check-In', 'Check-Out', 'Lost Revenue (INR)'],
+    ];
+    noShowData.bookings.forEach((b: any) => {
+      const profile = Array.isArray(b.profiles) ? b.profiles[0] : b.profiles;
+      rows.push([
+        b.booking_reference ?? b.id?.slice(0, 8),
+        profile?.full_name ?? 'Unknown',
+        b.check_in,
+        b.check_out,
+        String(Number(b.total_amount ?? 0).toFixed(2)),
+      ]);
+    });
+    // Summary row
+    rows.push(['', '', '', 'TOTAL LOST', String(noShowData.lostRevenue.toFixed(2))]);
+    const csv = rows.map(r => r.join(',')).join('\n');
+    const blob = new Blob(['\uFEFF' + csv], { type: 'text/csv;charset=utf-8;' });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url; a.download = `no_shows_${dateFrom}_to_${dateTo}.csv`; a.click();
     URL.revokeObjectURL(url);
   }
 
   const maxRevenue = Math.max(...daily.map(d => Number(d.revenue)), 1);
+
+  // Quick range helper
+  const applyQuickRange = (days: number) => {
+    const newFrom = getLocalDaysAgo(days);
+    const newTo   = getLocalToday();
+    setDateFrom(newFrom);
+    setDateTo(newTo);
+    loadReports(newFrom, newTo); // pass directly — avoids stale state
+  };
 
   return (
     <div className="space-y-6">
@@ -95,11 +172,11 @@ export default function AdminReportsPage() {
           <p className="text-body-md text-on-surface-variant mt-1">Financial analytics and insights</p>
         </div>
         <div className="flex items-center gap-2">
-          <button onClick={fetch} disabled={loading}
+          <button onClick={() => loadReports()} disabled={loading}
             className="flex items-center gap-2 px-3 py-2 border border-outline-variant text-sm rounded-lg hover:bg-surface transition-colors">
             <RefreshCw size={14} className={loading ? 'animate-spin' : ''} /> Refresh
           </button>
-          <button onClick={exportCSV}
+          <button onClick={exportRevenueCSV}
             className="flex items-center gap-2 px-4 py-2 bg-primary text-white text-sm font-semibold rounded-lg hover:bg-primary-dark transition-colors">
             <Download size={14} /> Export CSV
           </button>
@@ -118,40 +195,42 @@ export default function AdminReportsPage() {
           <input type="date" value={dateTo} onChange={e => setDateTo(e.target.value)}
             className="px-3 py-2 border border-outline-variant rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-primary/30" />
         </div>
-        <button onClick={fetch} disabled={loading}
-          className="px-5 py-2 bg-primary text-white text-sm font-semibold rounded-lg hover:bg-primary-dark transition-colors">
-          Generate
+        <button onClick={() => loadReports()} disabled={loading}
+          className="px-5 py-2 bg-primary text-white text-sm font-semibold rounded-lg hover:bg-primary-dark transition-colors disabled:opacity-60">
+          {loading ? 'Loading…' : 'Generate'}
         </button>
-        {/* Quick ranges */}
-        {[
-          { label: '7D',  days: 7 },
-          { label: '30D', days: 30 },
-          { label: '90D', days: 90 },
-        ].map(({ label, days }) => (
-          <button key={label} onClick={() => {
-            const from = new Date(); from.setDate(from.getDate() - days);
-            setDateFrom(from.toISOString().slice(0, 10));
-            setDateTo(today.toISOString().slice(0, 10));
-          }} className="px-3 py-2 text-sm border border-outline-variant rounded-lg hover:bg-surface transition-colors">
-            {label}
-          </button>
-        ))}
+        {/* Quick ranges — these auto-fetch immediately */}
+        <div className="flex gap-1.5">
+          {[
+            { label: '7D',  days: 7 },
+            { label: '30D', days: 30 },
+            { label: '90D', days: 90 },
+            { label: 'MTD', days: new Date().getDate() - 1 },
+          ].map(({ label, days }) => (
+            <button key={label}
+              onClick={() => applyQuickRange(days)}
+              disabled={loading}
+              className="px-3 py-2 text-sm border border-outline-variant rounded-lg hover:bg-surface transition-colors disabled:opacity-50">
+              {label}
+            </button>
+          ))}
+        </div>
       </div>
 
       {/* Summary KPIs */}
       {summary && (
         <div className="grid grid-cols-2 lg:grid-cols-3 gap-4">
           {[
-            { label: 'Total Revenue', value: formatINR(summary.total), icon: TrendingUp, color: 'text-green-600' },
-            { label: 'Transactions',  value: summary.count, icon: BarChart2 },
-            { label: 'Avg. Per Booking', value: formatINR(summary.avg), icon: TrendingUp },
-            { label: 'Online Revenue',   value: formatINR(summary.online), icon: TrendingUp },
-            { label: 'Cash / Hotel',     value: formatINR(summary.cash), icon: TrendingUp },
-            { label: 'Total Refunded',   value: formatINR(summary.refunds), icon: TrendingUp, color: 'text-purple-600' },
+            { label: 'Total Revenue',     value: formatINR(summary.total),   color: 'text-green-600' },
+            { label: 'Transactions',      value: summary.count,               color: 'text-blue-600' },
+            { label: 'Avg. Per Booking',  value: formatINR(summary.avg),      color: 'text-on-surface' },
+            { label: 'Online Payments',   value: formatINR(summary.online),   color: 'text-purple-600' },
+            { label: 'Cash / At Hotel',   value: formatINR(summary.cash),     color: 'text-amber-600' },
+            { label: 'Total Refunded',    value: formatINR(summary.refunds),  color: 'text-red-500' },
           ].map(k => (
             <div key={k.label} className="bg-white rounded-xl border border-outline-variant p-5">
               <p className="text-sm text-on-surface-variant">{k.label}</p>
-              <p className={`font-heading font-bold text-2xl mt-1 ${k.color ?? 'text-on-surface'}`}>{k.value}</p>
+              <p className={`font-heading font-bold text-2xl mt-1 ${k.color}`}>{k.value}</p>
             </div>
           ))}
         </div>
@@ -163,12 +242,18 @@ export default function AdminReportsPage() {
           <div className="px-5 py-4 border-b border-orange-100 bg-orange-50 flex items-center justify-between">
             <div>
               <h2 className="font-semibold text-orange-800 flex items-center gap-2">
-                ⚠️ No Show Analysis
+                <AlertTriangle size={16} className="text-orange-500" /> No Show Analysis
               </h2>
               <p className="text-xs text-orange-600 mt-0.5">
                 Bookings where guest did not arrive · {dateFrom} to {dateTo}
               </p>
             </div>
+            {noShowData.bookings.length > 0 && (
+              <button onClick={exportNoShowCSV}
+                className="flex items-center gap-1.5 px-3 py-1.5 text-xs font-semibold border border-orange-300 text-orange-700 rounded-lg hover:bg-orange-100 transition-colors">
+                <Download size={12} /> Export CSV
+              </button>
+            )}
           </div>
           {/* Summary row */}
           <div className="grid grid-cols-3 gap-4 p-5 border-b border-orange-100">
@@ -186,7 +271,7 @@ export default function AdminReportsPage() {
             </div>
           </div>
           {/* No-show bookings table */}
-          {noShowData.bookings.length > 0 && (
+          {noShowData.bookings.length > 0 ? (
             <div className="overflow-x-auto">
               <table className="w-full text-sm">
                 <thead className="bg-surface">
@@ -201,9 +286,7 @@ export default function AdminReportsPage() {
                     const profile = Array.isArray(b.profiles) ? b.profiles[0] : b.profiles;
                     return (
                       <tr key={b.id} className="hover:bg-surface/40 transition-colors">
-                        <td className="px-4 py-3 font-mono text-xs text-primary">
-                          #{b.booking_reference ?? b.id?.slice(0, 8)}
-                        </td>
+                        <td className="px-4 py-3 font-mono text-xs text-primary">#{b.booking_reference ?? b.id?.slice(0, 8)}</td>
                         <td className="px-4 py-3 font-medium">{profile?.full_name ?? 'Guest'}</td>
                         <td className="px-4 py-3">{new Date(b.check_in + 'T00:00:00').toLocaleDateString('en-IN', { day: '2-digit', month: 'short', year: 'numeric' })}</td>
                         <td className="px-4 py-3">{new Date(b.check_out + 'T00:00:00').toLocaleDateString('en-IN', { day: '2-digit', month: 'short', year: 'numeric' })}</td>
@@ -214,16 +297,20 @@ export default function AdminReportsPage() {
                 </tbody>
               </table>
             </div>
-          )}
-          {noShowData.bookings.length === 0 && (
-            <div className="py-8 text-center text-sm text-on-surface-variant">No no-shows recorded in this period ✅</div>
+          ) : (
+            <div className="py-8 text-center text-sm text-on-surface-variant">
+              ✅ No no-shows recorded in this period
+            </div>
           )}
         </div>
       )}
 
       {/* Revenue Bar Chart */}
       <div className="bg-white rounded-xl border border-outline-variant p-5">
-        <h2 className="font-semibold text-on-surface mb-6">Daily Revenue</h2>
+        <h2 className="font-semibold text-on-surface mb-6">
+          Daily Revenue
+          <span className="text-xs font-normal text-on-surface-variant ml-2">({dateFrom} → {dateTo})</span>
+        </h2>
         {loading ? (
           <div className="h-48 bg-surface rounded-lg animate-pulse" />
         ) : daily.length === 0 ? (
@@ -263,7 +350,7 @@ export default function AdminReportsPage() {
             <div className="flex mt-2 pl-20">
               {daily.map((d, i) => (
                 <div key={i} className={`flex-1 min-w-[4px] text-center text-[9px] text-on-surface-variant ${i % 7 === 0 ? '' : 'opacity-0'}`}>
-                  {new Date(d.day).toLocaleDateString('en-IN', { day: '2-digit', month: 'short' })}
+                  {new Date(d.day + 'T00:00:00').toLocaleDateString('en-IN', { day: '2-digit', month: 'short' })}
                 </div>
               ))}
             </div>
@@ -271,11 +358,15 @@ export default function AdminReportsPage() {
         )}
       </div>
 
-      {/* Daily Table */}
+      {/* Daily Breakdown Table */}
       {daily.length > 0 && (
         <div className="bg-white rounded-xl border border-outline-variant overflow-hidden">
-          <div className="px-5 py-4 border-b border-outline-variant">
+          <div className="px-5 py-4 border-b border-outline-variant flex items-center justify-between">
             <h2 className="font-semibold text-on-surface">Daily Breakdown</h2>
+            <button onClick={exportRevenueCSV}
+              className="flex items-center gap-1 text-xs text-primary hover:underline">
+              <Download size={11} /> Export CSV
+            </button>
           </div>
           <div className="overflow-x-auto">
             <table className="w-full text-sm">
@@ -289,7 +380,9 @@ export default function AdminReportsPage() {
               <tbody className="divide-y divide-outline-variant/50">
                 {[...daily].reverse().map(d => (
                   <tr key={d.day} className="hover:bg-surface/40 transition-colors">
-                    <td className="px-4 py-3 font-medium">{new Date(d.day).toLocaleDateString('en-IN', { weekday: 'short', day: '2-digit', month: 'short', year: 'numeric' })}</td>
+                    <td className="px-4 py-3 font-medium">
+                      {new Date(d.day + 'T00:00:00').toLocaleDateString('en-IN', { weekday: 'short', day: '2-digit', month: 'short', year: 'numeric' })}
+                    </td>
                     <td className="px-4 py-3 font-semibold text-green-700">{formatINR(d.revenue)}</td>
                     <td className="px-4 py-3">{d.count}</td>
                     <td className="px-4 py-3 text-on-surface-variant">{d.count > 0 ? formatINR(Number(d.revenue) / d.count) : '—'}</td>
@@ -301,7 +394,7 @@ export default function AdminReportsPage() {
                   <td className="px-4 py-3 font-bold">Total</td>
                   <td className="px-4 py-3 font-bold text-green-700">{formatINR(daily.reduce((s, d) => s + Number(d.revenue), 0))}</td>
                   <td className="px-4 py-3 font-bold">{daily.reduce((s, d) => s + d.count, 0)}</td>
-                  <td className="px-4 py-3 font-bold">{formatINR((summary?.avg ?? 0))}</td>
+                  <td className="px-4 py-3 font-bold">{formatINR(summary?.avg ?? 0)}</td>
                 </tr>
               </tfoot>
             </table>
