@@ -10,7 +10,7 @@ import { useBookingRealtime } from '@/hooks/useBookingRealtime';
 import { toast } from 'sonner';
 import {
   Plus, Search, RefreshCw, LogIn, LogOut, CheckCircle,
-  Eye, ChevronLeft, ChevronRight, BedDouble, TrendingUp, Clock, Users
+  Eye, ChevronLeft, ChevronRight, BedDouble, TrendingUp, Clock, Users, Banknote
 } from 'lucide-react';
 
 const STATUS_CONFIG: Record<string, { label: string; color: string }> = {
@@ -247,15 +247,22 @@ export default function AdminBookingsPage() {
                         <Link href={`/admin/bookings/${b.id}`} className="p-1.5 hover:bg-surface rounded text-on-surface-variant hover:text-primary" title="View">
                           <Eye size={14} />
                         </Link>
-                        {b.status === 'pending' && (
-                          <button onClick={() => handleConfirm(b.id)} disabled={isLoading} className="p-1.5 hover:bg-blue-50 rounded text-blue-600 disabled:opacity-40" title="Confirm">
-                            <CheckCircle size={14} />
-                          </button>
-                        )}
-                        {b.status === 'confirmed' && (
+                        {/* Confirmed: check-in only if PAID, else show collect payment link */}
+                        {b.status === 'confirmed' && b.payment_status === 'paid' && (
                           <button onClick={() => handleCheckIn(b.id, room?.id ?? br?.room_id)} disabled={isLoading} className="p-1.5 hover:bg-green-50 rounded text-green-600 disabled:opacity-40" title="Check In">
                             <LogIn size={14} />
                           </button>
+                        )}
+                        {b.status === 'confirmed' && b.payment_status !== 'paid' && (
+                          <Link href={`/admin/bookings/${b.id}`} className="p-1.5 hover:bg-amber-50 rounded text-amber-600" title="Collect Payment">
+                            <Banknote size={14} />
+                          </Link>
+                        )}
+                        {/* Pending: also show collect payment instead of just confirm */}
+                        {b.status === 'pending' && b.payment_status !== 'paid' && (
+                          <Link href={`/admin/bookings/${b.id}`} className="p-1.5 hover:bg-amber-50 rounded text-amber-600" title="Collect Payment">
+                            <Banknote size={14} />
+                          </Link>
                         )}
                         {b.status === 'checked_in' && (
                           <button onClick={() => handleCheckOut(b.id, room?.id ?? br?.room_id)} disabled={isLoading} className="p-1.5 hover:bg-orange-50 rounded text-orange-600 disabled:opacity-40" title="Check Out">
