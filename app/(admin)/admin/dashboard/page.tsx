@@ -62,6 +62,7 @@ const BOOKING_STATUS_COLORS: Record<string, string> = {
   checked_in: 'bg-green-100 text-green-700',
   checked_out:'bg-gray-100 text-gray-600',
   cancelled:  'bg-red-100 text-red-700',
+  no_show:    'bg-orange-100 text-orange-700',
 };
 
 export default function AdminDashboardPage() {
@@ -70,6 +71,7 @@ export default function AdminDashboardPage() {
   const [revenue7d, setRevenue7d]     = useState<RevenueDay[]>([]);
   const [recentBookings, setRecentBookings] = useState<any[]>([]);
   const [recentPayments, setRecentPayments] = useState<any[]>([]);
+  const [noShowCount, setNoShowCount]  = useState<number>(0);
   const [loading, setLoading]         = useState(true);
   const [lastRefreshed, setLastRefreshed] = useState(new Date());
 
@@ -96,6 +98,13 @@ export default function AdminDashboardPage() {
         .order('created_at', { ascending: false })
         .limit(5);
       setRecentPayments(payments ?? []);
+
+      // Fetch no-show count directly (not in BI RPC)
+      const { count: nsCount } = await (supabase as any)
+        .from('bookings')
+        .select('id', { count: 'exact', head: true })
+        .eq('status', 'no_show');
+      setNoShowCount(nsCount ?? 0);
 
       setLastRefreshed(new Date());
     } catch {
@@ -281,14 +290,15 @@ export default function AdminDashboardPage() {
       {/* ── Booking Status KPI Row ── */}
       <div>
         <p className="text-xs font-semibold text-on-surface-variant uppercase tracking-widest mb-3">📋 Booking Overview</p>
-        <div className="grid grid-cols-3 sm:grid-cols-6 gap-3">
+        <div className="grid grid-cols-3 sm:grid-cols-7 gap-3">
           {[
             { label: 'Total',      val: stats?.bookings_total,     icon: CalendarDays,   color: 'text-on-surface' },
             { label: 'Confirmed',  val: stats?.bookings_confirmed, icon: CheckCircle,    color: 'text-blue-600' },
             { label: 'Checked In', val: stats?.bookings_checkedin, icon: Activity,       color: 'text-green-600' },
             { label: 'Completed',  val: stats?.bookings_completed, icon: CheckCircle,    color: 'text-slate-600' },
             { label: 'Cancelled',  val: stats?.bookings_cancelled, icon: XCircle,        color: 'text-red-500' },
-            { label: 'Cancel Rate',val: `${stats?.cancellation_rate ?? 0}%`, icon: AlertTriangle, color: 'text-orange-600' },
+            { label: 'No Show',    val: noShowCount,               icon: AlertTriangle,  color: 'text-orange-600' },
+            { label: 'Cancel Rate',val: `${stats?.cancellation_rate ?? 0}%`, icon: AlertTriangle, color: 'text-orange-500' },
           ].map(k => (
             <div key={k.label} className="bg-white rounded-xl border border-outline-variant p-3 text-center">
               <k.icon size={16} className={`mx-auto mb-1 ${k.color}`} />

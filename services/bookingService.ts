@@ -311,7 +311,37 @@ export async function updateBookingNotes(client: Client, bookingId: string, note
   return db.from('bookings').update({ internal_notes: notes }).eq('id', bookingId);
 }
 
+export async function markNoShow(client: Client, bookingId: string) {
+  const db = client as any;
+  const result = await db.from('bookings').update({
+    status: 'no_show',
+  }).eq('id', bookingId).select().single();
+
+  // Free up the room back to available
+  if (!result.error) {
+    const { data: br } = await db
+      .from('booking_rooms')
+      .select('room_id')
+      .eq('booking_id', bookingId)
+      .single();
+    if (br?.room_id) {
+      await db.from('rooms').update({ status: 'available' }).eq('id', br.room_id);
+    }
+    // Notify staff
+    await notifyStaffUsers(client, {
+      type:      'admin_alert',
+      title:     `⚠️ No Show Recorded`,
+      body:      `A booking has been marked as No Show.`,
+      priority:  'high',
+      actionUrl: `/admin/bookings/${bookingId}`,
+      metadata:  { bookingId },
+    });
+  }
+  return result;
+}
+
 export async function reassignRoom(client: Client, bookingId: string, newRoomId: string) {
+
   const db = client as any;
   // Check new room availability
   const { data: booking } = await db

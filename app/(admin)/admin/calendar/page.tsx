@@ -4,12 +4,12 @@ import { useState, useEffect, useCallback } from 'react';
 import { useRouter } from 'next/navigation';
 import Link from 'next/link';
 import { useSupabase } from '@/providers/SupabaseProvider';
-import { getBookingCalendar } from '@/services/bookingService';
+import { getBookingCalendar, markNoShow } from '@/services/bookingService';
 import { useBookingRealtime } from '@/hooks/useBookingRealtime';
 import { formatDate, formatINR } from '@/services/pricingService';
 import {
   ChevronLeft, ChevronRight, Plus, Calendar, List,
-  X, BedDouble, Users, Clock, CreditCard, ExternalLink,
+  X, BedDouble, Users, Clock, CreditCard, ExternalLink, AlertTriangle,
 } from 'lucide-react';
 
 const STATUS_PILL: Record<string, string> = {
@@ -50,7 +50,8 @@ export default function AdminCalendarPage() {
   const [view, setView]             = useState<'month' | 'week'>('month');
   const [bookings, setBookings]     = useState<any[]>([]);
   const [isLoading, setIsLoading]   = useState(true);
-  const [selectedDate, setSelectedDate] = useState<string | null>(null); // clicked date filter
+  const [selectedDate, setSelectedDate] = useState<string | null>(null);
+  const [noShowLoading, setNoShowLoading] = useState<string | null>(null); // bookingId being marked
 
   const getMonthRange = (d: Date) => ({
     start: toISO(new Date(d.getFullYear(), d.getMonth(), 1)),
@@ -431,11 +432,33 @@ export default function AdminCalendarPage() {
                         )}
                       </div>
 
-                      {/* View button */}
-                      <Link href={`/admin/bookings/${b.id}`}
-                        className="mt-3 inline-flex items-center gap-1 text-xs text-primary font-semibold hover:underline">
-                        View Details <ExternalLink size={10} />
-                      </Link>
+                      {/* View button + No Show */}
+                      <div className="mt-3 flex items-center gap-3 flex-wrap">
+                        <Link href={`/admin/bookings/${b.id}`}
+                          className="inline-flex items-center gap-1 text-xs text-primary font-semibold hover:underline">
+                          View Details <ExternalLink size={10} />
+                        </Link>
+                        {/* Show "Mark No Show" only for past check-in, pending/confirmed */}
+                        {['pending', 'confirmed'].includes(b.status) && b.check_in < toISO(today) && (
+                          <button
+                            onClick={async () => {
+                              setNoShowLoading(b.id);
+                              const { error } = await markNoShow(supabase as any, b.id);
+                              if (error) {
+                                // toast not imported here — use alert as fallback
+                              } else {
+                                await load();
+                              }
+                              setNoShowLoading(null);
+                            }}
+                            disabled={noShowLoading === b.id}
+                            className="inline-flex items-center gap-1 text-xs text-orange-600 font-semibold hover:underline disabled:opacity-50"
+                          >
+                            <AlertTriangle size={10} />
+                            {noShowLoading === b.id ? 'Marking…' : 'Mark No Show'}
+                          </button>
+                        )}
+                      </div>
                     </div>
                   );
                 })

@@ -10,6 +10,7 @@ import { Download, RefreshCw, TrendingUp, BarChart2 } from 'lucide-react';
 
 interface DailyRevenue { day: string; revenue: number; count: number; }
 interface Summary { total: number; count: number; avg: number; online: number; cash: number; refunds: number; }
+interface NoShowData { count: number; lostRevenue: number; rate: number; bookings: any[]; }
 
 export default function AdminReportsPage() {
   const { supabase } = useSupabase();
@@ -20,6 +21,7 @@ export default function AdminReportsPage() {
   const [dateTo,   setDateTo]   = useState(today.toISOString().slice(0, 10));
   const [daily,    setDaily]    = useState<DailyRevenue[]>([]);
   const [summary,  setSummary]  = useState<Summary | null>(null);
+  const [noShowData, setNoShowData] = useState<NoShowData | null>(null);
   const [loading,  setLoading]  = useState(false);
 
   const fetch = useCallback(async () => {
@@ -45,6 +47,27 @@ export default function AdminReportsPage() {
       const refunds = payments.reduce((s: number, p: any) => s + Number(p.refund_amount ?? 0), 0);
       setSummary({ total, count: payments.length, avg: payments.length ? total / payments.length : 0, online, cash, refunds });
     }
+
+    // No-show analysis for selected date range
+    const { data: noShows } = await db
+      .from('bookings')
+      .select('id, booking_reference, check_in, check_out, total_amount, profiles:guest_id(full_name)')
+      .eq('status', 'no_show')
+      .gte('check_in', dateFrom)
+      .lte('check_in', dateTo);
+    if (noShows) {
+      const nsLost = noShows.reduce((s: number, b: any) => s + Number(b.total_amount ?? 0), 0);
+      // Total bookings in range for rate calculation
+      const { count: totalInRange } = await db
+        .from('bookings')
+        .select('id', { count: 'exact', head: true })
+        .gte('check_in', dateFrom)
+        .lte('check_in', dateTo)
+        .neq('status', 'cancelled');
+      const rate = totalInRange ? Math.round((noShows.length / totalInRange) * 100) : 0;
+      setNoShowData({ count: noShows.length, lostRevenue: nsLost, rate, bookings: noShows });
+    }
+
     setLoading(false);
   }, [supabase, dateFrom, dateTo]);
 
@@ -131,6 +154,70 @@ export default function AdminReportsPage() {
               <p className={`font-heading font-bold text-2xl mt-1 ${k.color ?? 'text-on-surface'}`}>{k.value}</p>
             </div>
           ))}
+        </div>
+      )}
+
+      {/* ── No Show Analysis ── */}
+      {noShowData !== null && (
+        <div className="bg-white rounded-xl border border-orange-200 overflow-hidden">
+          <div className="px-5 py-4 border-b border-orange-100 bg-orange-50 flex items-center justify-between">
+            <div>
+              <h2 className="font-semibold text-orange-800 flex items-center gap-2">
+                ⚠️ No Show Analysis
+              </h2>
+              <p className="text-xs text-orange-600 mt-0.5">
+                Bookings where guest did not arrive · {dateFrom} to {dateTo}
+              </p>
+            </div>
+          </div>
+          {/* Summary row */}
+          <div className="grid grid-cols-3 gap-4 p-5 border-b border-orange-100">
+            <div className="text-center">
+              <p className="text-3xl font-bold text-orange-600">{noShowData.count}</p>
+              <p className="text-xs text-on-surface-variant mt-1">No Shows</p>
+            </div>
+            <div className="text-center">
+              <p className="text-3xl font-bold text-orange-600">{noShowData.rate}%</p>
+              <p className="text-xs text-on-surface-variant mt-1">No Show Rate</p>
+            </div>
+            <div className="text-center">
+              <p className="text-3xl font-bold text-red-600">{formatINR(noShowData.lostRevenue)}</p>
+              <p className="text-xs text-on-surface-variant mt-1">Lost Revenue</p>
+            </div>
+          </div>
+          {/* No-show bookings table */}
+          {noShowData.bookings.length > 0 && (
+            <div className="overflow-x-auto">
+              <table className="w-full text-sm">
+                <thead className="bg-surface">
+                  <tr>
+                    {['Ref #', 'Guest', 'Check-in', 'Check-out', 'Lost Revenue'].map(h => (
+                      <th key={h} className="px-4 py-3 text-left text-xs font-semibold text-on-surface-variant uppercase tracking-wide">{h}</th>
+                    ))}
+                  </tr>
+                </thead>
+                <tbody className="divide-y divide-outline-variant/50">
+                  {noShowData.bookings.map((b: any) => {
+                    const profile = Array.isArray(b.profiles) ? b.profiles[0] : b.profiles;
+                    return (
+                      <tr key={b.id} className="hover:bg-surface/40 transition-colors">
+                        <td className="px-4 py-3 font-mono text-xs text-primary">
+                          #{b.booking_reference ?? b.id?.slice(0, 8)}
+                        </td>
+                        <td className="px-4 py-3 font-medium">{profile?.full_name ?? 'Guest'}</td>
+                        <td className="px-4 py-3">{new Date(b.check_in + 'T00:00:00').toLocaleDateString('en-IN', { day: '2-digit', month: 'short', year: 'numeric' })}</td>
+                        <td className="px-4 py-3">{new Date(b.check_out + 'T00:00:00').toLocaleDateString('en-IN', { day: '2-digit', month: 'short', year: 'numeric' })}</td>
+                        <td className="px-4 py-3 font-semibold text-red-600">{formatINR(b.total_amount ?? 0)}</td>
+                      </tr>
+                    );
+                  })}
+                </tbody>
+              </table>
+            </div>
+          )}
+          {noShowData.bookings.length === 0 && (
+            <div className="py-8 text-center text-sm text-on-surface-variant">No no-shows recorded in this period ✅</div>
+          )}
         </div>
       )}
 

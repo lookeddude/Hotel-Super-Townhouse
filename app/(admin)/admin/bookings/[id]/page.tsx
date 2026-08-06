@@ -4,14 +4,14 @@ import { useEffect, useState, useCallback } from 'react';
 import { useParams, useRouter } from 'next/navigation';
 import Link from 'next/link';
 import { useSupabase } from '@/providers/SupabaseProvider';
-import { getBookingById, confirmBooking, checkInBooking, checkOutBooking, cancelBooking, updateBookingNotes } from '@/services/bookingService';
+import { getBookingById, confirmBooking, checkInBooking, checkOutBooking, cancelBooking, updateBookingNotes, markNoShow } from '@/services/bookingService';
 import { generateInvoice, getInvoiceByBooking } from '@/services/invoiceService';
 import { formatINR, formatDate } from '@/services/pricingService';
 import { InvoiceView } from '@/components/invoice/InvoiceView';
 import { toast } from 'sonner';
 import {
   ArrowLeft, BedDouble, Calendar, FileText, LogIn, LogOut,
-  CheckCircle, XCircle, Edit2, Save, User, Clock, Phone, Mail
+  CheckCircle, XCircle, Edit2, Save, User, Clock, Phone, Mail, AlertTriangle,
 } from 'lucide-react';
 
 const STATUS_COLORS: Record<string, string> = {
@@ -88,6 +88,9 @@ export default function AdminBookingDetailPage() {
     });
   };
 
+  const handleNoShow = () =>
+    doAction('no-show', () => markNoShow(supabase as any, id));
+
   const handleSaveNotes = async () => {
     const db = supabase as any;
     await db.from('bookings').update({ internal_notes: notes }).eq('id', id);
@@ -120,10 +123,13 @@ export default function AdminBookingDetailPage() {
   const roomType = br?.room_types;
   const sc = STATUS_COLORS[booking.status] ?? 'bg-gray-100 text-gray-600 border-gray-300';
 
-  const canConfirm = booking.status === 'pending';
-  const canCheckIn = booking.status === 'confirmed';
-  const canCheckOut = booking.status === 'checked_in';
-  const canCancel = ['pending', 'confirmed'].includes(booking.status);
+  const canConfirm    = booking.status === 'pending';
+  const canCheckIn    = booking.status === 'confirmed';
+  const canCheckOut   = booking.status === 'checked_in';
+  const canCancel     = ['pending', 'confirmed'].includes(booking.status);
+  // No-show: booking was supposed to check-in in the past but still pending/confirmed
+  const todayISO      = (() => { const d = new Date(); return `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}-${String(d.getDate()).padStart(2,'0')}`; })();
+  const canMarkNoShow = ['pending', 'confirmed'].includes(booking.status) && booking.check_in < todayISO;
 
   return (
     <div className="space-y-5">
@@ -173,6 +179,16 @@ export default function AdminBookingDetailPage() {
         {canCancel && (
           <button onClick={() => setShowCancelModal(true)} className="flex items-center gap-2 px-4 py-2 border border-red-300 text-red-600 text-sm font-semibold rounded-lg hover:bg-red-50">
             <XCircle size={15} /> Cancel
+          </button>
+        )}
+        {canMarkNoShow && (
+          <button
+            onClick={handleNoShow}
+            disabled={actionLoading === 'no-show'}
+            className="flex items-center gap-2 px-4 py-2 bg-orange-500 text-white text-sm font-semibold rounded-lg hover:bg-orange-600 disabled:opacity-60"
+          >
+            <AlertTriangle size={15} />
+            {actionLoading === 'no-show' ? 'Marking…' : 'Mark No Show'}
           </button>
         )}
       </div>
