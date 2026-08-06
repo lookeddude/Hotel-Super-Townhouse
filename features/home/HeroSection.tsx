@@ -152,7 +152,7 @@ export function HeroSection() {
           {slides.map((_, i) => (
             <button key={i}
               onClick={() => { if (timerRef.current) clearTimeout(timerRef.current); setCurrent(i); }}
-              className={`transition-all rounded-full ${i === current ? 'w-5 md:w-6 h-2 bg-white' : 'w-2 h-2 bg-white/40 hover:bg-white/70'}`}
+              className={`transition-all rounded-full touch-manipulation ${i === current ? 'w-6 md:w-7 h-2.5 bg-white shadow-sm' : 'w-2.5 h-2.5 bg-white/40 hover:bg-white/70'}`}
               aria-label={`Go to slide ${i + 1}`}
             />
           ))}

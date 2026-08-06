@@ -298,7 +298,7 @@ export function Navbar() {
             role="navigation"
             aria-label="Mobile navigation"
           >
-            <div className="container-custom py-4 space-y-1">
+            <div className="container-custom py-4 space-y-1 max-h-[calc(100svh-4rem)] overflow-y-auto">
               {PUBLIC_NAV.map((item) => (
                 <div key={item.href}>
                   <Link
@@ -340,7 +340,7 @@ export function Navbar() {
                     Sign In
                   </Link>
                 )}
-                <Link href={ROUTES.rooms} className="block w-full text-center px-4 py-2.5 bg-primary text-white rounded-lg text-label-md hover:bg-primary-dark transition-colors">
+                <Link href={ROUTES.rooms} className="block w-full text-center px-4 py-2.5 bg-primary text-white rounded-lg text-label-md font-semibold hover:bg-primary-dark transition-colors touch-manipulation">
                   Book Now
                 </Link>
               </div>

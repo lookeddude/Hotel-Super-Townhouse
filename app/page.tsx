@@ -83,16 +83,16 @@ export default async function HomePage() {
         <section className="section-gap bg-background" aria-labelledby="featured-rooms-heading">
           <div className="container-custom">
             <div className="text-center mb-12">
-              <p className="text-label-md text-primary uppercase tracking-widest mb-3">Our Rooms</p>
-              <h2 id="featured-rooms-heading" className="font-heading text-headline-lg text-on-surface mb-4">
+              <p className="text-label-md text-primary uppercase tracking-widest mb-3 font-semibold">Our Rooms</p>
+              <h2 id="featured-rooms-heading" className="font-heading text-headline-lg text-on-surface mb-6 section-heading-accent">
                 Rooms &amp; Suites
               </h2>
-              <p className="text-body-lg text-on-surface-variant max-w-xl mx-auto">
+              <p className="text-body-lg text-on-surface-variant max-w-xl mx-auto mt-4">
                 From cozy standard rooms to spacious suites — every room is designed for your comfort.
               </p>
             </div>
 
-            <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-6">
               {featuredRooms.length > 0 ? featuredRooms.map((room) => {
                 // Priority 1: image_url from admin panel upload
                 const primaryUrl = room.image_url || room.thumbnail_url;
@@ -104,7 +104,7 @@ export default async function HomePage() {
                 return (
                   <div key={room.id} className="card-base bg-white overflow-hidden hover:shadow-md transition-shadow group">
                     {/* Room Image */}
-                    <div className="h-52 relative overflow-hidden bg-gradient-to-br from-surface to-outline-variant">
+                    <div className="h-48 sm:h-52 lg:h-56 relative overflow-hidden bg-gradient-to-br from-surface to-outline-variant">
                       {finalSrc ? (
                         <Image
                           src={finalSrc}
@@ -148,7 +148,7 @@ export default async function HomePage() {
                         </div>
                         <Link
                           href={`/rooms/${room.slug || room.id}`}
-                          className="px-4 py-2 bg-primary text-white text-label-md rounded-lg hover:bg-primary-dark transition-colors"
+                          className="btn-primary text-sm px-4 py-2"
                         >
                           Book Now
                         </Link>
@@ -169,7 +169,7 @@ export default async function HomePage() {
             <div className="text-center mt-10">
               <Link
                 href={ROUTES.rooms}
-                className="inline-flex items-center gap-2 px-7 py-3 border-2 border-primary text-primary font-heading font-semibold rounded-lg hover:bg-primary hover:text-white transition-all"
+                className="btn-outline inline-flex items-center gap-2 px-7 py-3"
               >
                 View All Rooms →
               </Link>
@@ -181,18 +181,21 @@ export default async function HomePage() {
         <section className="section-gap bg-surface" aria-labelledby="testimonials-heading">
           <div className="container-custom">
             <div className="text-center mb-12">
-              <p className="text-label-md text-primary uppercase tracking-widest mb-3">Guest Reviews</p>
-              <h2 id="testimonials-heading" className="font-heading text-headline-lg text-on-surface mb-4">
+              <p className="text-label-md text-primary uppercase tracking-widest mb-3 font-semibold">Guest Reviews</p>
+              <h2 id="testimonials-heading" className="font-heading text-headline-lg text-on-surface mb-2 section-heading-accent">
                 What Our Guests Say
               </h2>
             </div>
-            <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-6">
               {approvedReviews.length > 0 ? approvedReviews.map((review) => {
                 const guestName = Array.isArray(review.profiles)
                   ? review.profiles[0]?.full_name
                   : review.profiles?.full_name;
+                const initials = guestName ? guestName.split(' ').map((n: string) => n[0]).join('').toUpperCase().slice(0,2) : 'G';
                 return (
-                  <div key={review.id} className="bg-white p-6 rounded-lg border border-outline-variant space-y-4">
+                  <div key={review.id} className="bg-white p-6 rounded-2xl border border-outline-variant space-y-4 hover:shadow-md transition-shadow relative">
+                    {/* Decorative quote */}
+                    <span className="absolute top-4 right-4 text-5xl font-serif text-primary/10 leading-none select-none">&ldquo;</span>
                     <div className="flex gap-0.5">
                       {Array.from({ length: 5 }).map((_, s) => (
                         <Star key={s} size={14} className={s < (review.overall_rating ?? 0) ? 'text-yellow-400 fill-yellow-400' : 'text-outline-variant'} />
@@ -202,11 +205,15 @@ export default async function HomePage() {
                     <p className="text-on-surface-variant text-sm leading-relaxed italic line-clamp-4">
                       &ldquo;{review.comment}&rdquo;
                     </p>
-                    <p className="text-xs text-primary font-semibold">— {guestName ?? 'Verified Guest'}</p>
+                    <div className="flex items-center gap-2 pt-1">
+                      <div className="w-7 h-7 rounded-full bg-primary/10 text-primary flex items-center justify-center text-xs font-bold flex-shrink-0">{initials}</div>
+                      <p className="text-xs text-primary font-semibold">— {guestName ?? 'Verified Guest'}</p>
+                    </div>
                   </div>
                 );
               }) : fallbackReviews.map((review) => (
-                <div key={review.name} className="bg-white p-6 rounded-lg border border-outline-variant space-y-4">
+                <div key={review.name} className="bg-white p-6 rounded-2xl border border-outline-variant space-y-4 hover:shadow-md transition-shadow relative">
+                  <span className="absolute top-4 right-4 text-5xl font-serif text-primary/10 leading-none select-none">&ldquo;</span>
                   <div className="flex gap-0.5">
                     {Array.from({ length: review.rating }).map((_, i) => (
                       <Star key={i} size={14} className="text-yellow-400 fill-yellow-400" />
@@ -215,7 +222,10 @@ export default async function HomePage() {
                   <p className="text-on-surface-variant text-sm leading-relaxed italic">
                     &ldquo;{review.text}&rdquo;
                   </p>
-                  <p className="text-xs text-primary font-semibold">— {review.name}</p>
+                  <div className="flex items-center gap-2 pt-1">
+                    <div className="w-7 h-7 rounded-full bg-primary/10 text-primary flex items-center justify-center text-xs font-bold flex-shrink-0">{review.name[0]}</div>
+                    <p className="text-xs text-primary font-semibold">— {review.name}</p>
+                  </div>
                 </div>
               ))}
             </div>
