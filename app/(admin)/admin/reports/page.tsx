@@ -24,6 +24,11 @@ function localDate(offsetDays = 0) {
 function fmtDate(iso: string) {
   return new Date(iso + 'T00:00:00').toLocaleDateString('en-IN', { day: '2-digit', month: 'short', year: 'numeric' });
 }
+function fmtDateTime(ts: string | null | undefined) {
+  if (!ts) return '—';
+  const d = new Date(ts);
+  return d.toLocaleString('en-IN', { day: '2-digit', month: 'short', year: 'numeric', hour: '2-digit', minute: '2-digit', hour12: true });
+}
 function toCSV(rows: string[][], filename: string) {
   const escape = (v: string) => v.includes(',') || v.includes('"') || v.includes('\n') ? `"${v.replace(/"/g, '""')}"` : v;
   const csv = rows.map(r => r.map(escape).join(',')).join('\n');
@@ -70,6 +75,7 @@ export default function AdminReportsPage() {
         id, booking_reference, status, check_in, check_out, nights,
         arrival_time, total_amount, payment_status, created_at,
         num_adults, num_children, special_requests,
+        checked_in_at, checked_out_at,
         profiles:guest_id(full_name, email, phone),
         booking_rooms(
           price_per_night,
@@ -170,8 +176,10 @@ export default function AdminReportsPage() {
   const exportMasterCSV = () => {
     const header = [
       'Booking Ref', 'Booking Date', 'Guest Name', 'Email', 'Phone',
-      'Room Number', 'Room Type', 'Check-In', 'Check-Out', 'Nights',
-      'Adults', 'Children', 'Arrival Time', 'Payment Mode', 'Payment Status',
+      'Room Number', 'Room Type', 'Check-In Date', 'Check-Out Date', 'Nights',
+      'Adults', 'Children', 'Arrival Time',
+      'Actual Check-In Time', 'Actual Check-Out Time',
+      'Payment Mode', 'Payment Status',
       'Total Amount (INR)', 'Status', 'Special Requests',
     ];
     const rows = master.map(b => {
@@ -190,6 +198,8 @@ export default function AdminReportsPage() {
         String(b.num_adults ?? ''),
         String(b.num_children ?? ''),
         b.arrival_time ?? '',
+        b.checked_in_at ? new Date(b.checked_in_at).toLocaleString('en-IN') : '',
+        b.checked_out_at ? new Date(b.checked_out_at).toLocaleString('en-IN') : '',
         payLabel,
         b.payment_status ?? '',
         Number(b.total_amount ?? 0).toFixed(2),
@@ -420,7 +430,7 @@ export default function AdminReportsPage() {
             <table className="w-full text-sm min-w-[1200px]">
               <thead className="bg-surface sticky top-0 z-10">
                 <tr>
-                  {['Ref #','Booking Date','Guest','Email','Phone','Room','Check-In','Check-Out','Nights','Adults','Arrival Time','Payment Mode','Pymt Status','Amount','Status'].map(h=>(
+                  {['Ref #','Booking Date','Guest','Email','Phone','Room','Check-In Date','Check-Out Date','Nights','Adults','Arrival Time','Check-In Time','Check-Out Time','Payment Mode','Pymt Status','Amount','Status'].map(h=>(
                     <th key={h} className="px-3 py-3 text-left text-xs font-semibold text-on-surface-variant uppercase tracking-wide whitespace-nowrap border-b border-outline-variant">{h}</th>
                   ))}
                 </tr>
@@ -449,6 +459,17 @@ export default function AdminReportsPage() {
                       <td className="px-3 py-2.5 text-center">{b.nights ?? '—'}</td>
                       <td className="px-3 py-2.5 text-center">{b.num_adults ?? '—'}</td>
                       <td className="px-3 py-2.5 text-xs whitespace-nowrap">{b.arrival_time ?? '—'}</td>
+                      {/* Actual check-in / check-out timestamps */}
+                      <td className="px-3 py-2.5 text-xs whitespace-nowrap">
+                        {b.checked_in_at
+                          ? <span className="text-green-700 font-medium">{fmtDateTime(b.checked_in_at)}</span>
+                          : <span className="text-on-surface-variant">—</span>}
+                      </td>
+                      <td className="px-3 py-2.5 text-xs whitespace-nowrap">
+                        {b.checked_out_at
+                          ? <span className="text-blue-700 font-medium">{fmtDateTime(b.checked_out_at)}</span>
+                          : <span className="text-on-surface-variant">—</span>}
+                      </td>
                       <td className="px-3 py-2.5 whitespace-nowrap">
                         <span className={`text-xs px-2 py-0.5 rounded-full font-medium ${payLabel==='Online'?'bg-blue-50 text-blue-700':'bg-amber-50 text-amber-700'}`}>
                           {payLabel==='Online'?'🌐 Online':'💵 At Hotel'}
@@ -472,7 +493,7 @@ export default function AdminReportsPage() {
               {/* Footer totals */}
               <tfoot className="bg-surface border-t-2 border-outline-variant">
                 <tr>
-                  <td colSpan={13} className="px-3 py-3 font-bold text-sm">
+                  <td colSpan={15} className="px-3 py-3 font-bold text-sm">
                     Total ({filteredMaster.length} bookings)
                   </td>
                   <td className="px-3 py-3 font-bold text-green-700 whitespace-nowrap">
