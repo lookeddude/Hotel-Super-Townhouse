@@ -155,10 +155,13 @@ export default function AdminBookingDetailPage() {
   const sc = STATUS_COLORS[booking.status] ?? 'bg-gray-100 text-gray-600 border-gray-300';
 
   const canConfirm    = booking.status === 'pending';
-  // Payment detection
-  const isOnlinePayment   = ['online', 'upi', 'card', 'bank_transfer'].includes(booking.payment_method ?? '');
-  const isPayAtHotel      = ['pay_at_hotel', 'cash'].includes(booking.payment_method ?? '') || !booking.payment_method;
+  // Payment detection — get method from payments table join
+  const paymentRecords: any[] = Array.isArray(booking.payments) ? booking.payments : (booking.payments ? [booking.payments] : []);
+  const latestPayment = paymentRecords[0];
+  const paymentMethodStr = latestPayment?.method ?? '';
+  const isOnlinePayment   = ['online', 'upi', 'card', 'bank_transfer'].includes(paymentMethodStr);
   const isPaid            = booking.payment_status === 'paid';
+  const isPayAtHotel      = !isOnlinePayment; // if no online payment record, treat as pay-at-hotel
   const needsPayment      = isPayAtHotel && !isPaid;
   // No-show: booking was supposed to check-in in the past but still pending/confirmed
   const todayISO      = (() => { const d = new Date(); return `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}-${String(d.getDate()).padStart(2,'0')}`; })();

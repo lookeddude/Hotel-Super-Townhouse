@@ -123,7 +123,7 @@ const BOOKING_SELECT = `
   id, booking_reference, status, check_in, check_out, nights,
   num_adults, num_children, special_requests, internal_notes,
   arrival_time, subtotal, discount_amount, tax_amount, total_amount,
-  paid_amount, balance_amount, payment_status, payment_method, source,
+  paid_amount, balance_amount, payment_status, source,
   cancelled_at, cancellation_reason, confirmed_at, checked_in_at, checked_out_at,
   created_at, updated_at,
   profiles:guest_id(id, full_name, email, phone, avatar_url),
@@ -132,7 +132,8 @@ const BOOKING_SELECT = `
     room_types:room_type_id(id, name, bed_type)
   ),
   booking_guests(id, full_name, email, phone, is_primary),
-  offers:offer_id(id, title, code)
+  offers:offer_id(id, title, code),
+  payments(id, method, status, amount, paid_at)
 `;
 
 export async function getBookingById(client: Client, id: string) {
