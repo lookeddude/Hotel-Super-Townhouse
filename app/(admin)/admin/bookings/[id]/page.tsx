@@ -152,8 +152,6 @@ export default function AdminBookingDetailPage() {
   const br = Array.isArray(booking.booking_rooms) ? booking.booking_rooms[0] : booking.booking_rooms;
   const room = br?.rooms;
   const roomType = br?.room_types;
-  const sc = STATUS_COLORS[booking.status] ?? 'bg-gray-100 text-gray-600 border-gray-300';
-  const canConfirm    = booking.status === 'pending';
 
   // ── Payment detection ─────────────────────────────────────────────────────
   const paymentRecords: any[] = Array.isArray(booking.payments)
@@ -175,16 +173,21 @@ export default function AdminBookingDetailPage() {
                             && booking.check_in < todayISO
                             && !isPaid;
 
-  // Collect payment: confirmed + unpaid (any date, past or future)
-  const canCollectPayment = booking.status === 'confirmed' && !isPaid;
+  // Collect payment: pending or confirmed + unpaid (API auto-confirms pending on payment)
+  const canCollectPayment = ['pending', 'confirmed'].includes(booking.status) && !isPaid;
+
+  // Confirm button: pending + unpaid (alternative to collect payment — just confirms without payment)
+  const canConfirm        = booking.status === 'pending' && !isPaid;
 
   // Check-in: confirmed + paid (payment proves guest is present, regardless of date)
   const canCheckIn        = booking.status === 'confirmed' && isPaid;
 
   const canCheckOut       = booking.status === 'checked_in';
 
-  // Cancel: only for unpaid bookings (paid ones should not be cancelled without refund)
+  // Cancel: only for unpaid bookings
   const canCancel         = ['pending', 'confirmed'].includes(booking.status) && !isPaid;
+
+  const sc = STATUS_COLORS[booking.status] ?? 'bg-gray-100 text-gray-600 border-gray-300';
 
   return (
     <div className="space-y-5">
