@@ -124,12 +124,13 @@ export default function AdminBookingDetailPage() {
   const sc = STATUS_COLORS[booking.status] ?? 'bg-gray-100 text-gray-600 border-gray-300';
 
   const canConfirm    = booking.status === 'pending';
-  const canCheckIn    = booking.status === 'confirmed';
-  const canCheckOut   = booking.status === 'checked_in';
-  const canCancel     = ['pending', 'confirmed'].includes(booking.status);
   // No-show: booking was supposed to check-in in the past but still pending/confirmed
   const todayISO      = (() => { const d = new Date(); return `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}-${String(d.getDate()).padStart(2,'0')}`; })();
   const canMarkNoShow = ['pending', 'confirmed'].includes(booking.status) && booking.check_in < todayISO;
+  // Only show Check In if NOT a no-show candidate (check-in date is today or future)
+  const canCheckIn    = booking.status === 'confirmed' && !canMarkNoShow;
+  const canCheckOut   = booking.status === 'checked_in';
+  const canCancel     = ['pending', 'confirmed'].includes(booking.status) && !canMarkNoShow;
 
   return (
     <div className="space-y-5">
