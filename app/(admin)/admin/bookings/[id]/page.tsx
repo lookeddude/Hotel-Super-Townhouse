@@ -12,6 +12,7 @@ import { toast } from 'sonner';
 import {
   ArrowLeft, BedDouble, Calendar, FileText, LogIn, LogOut,
   CheckCircle, XCircle, Edit2, Save, User, Clock, Phone, Mail, AlertTriangle,
+  CreditCard, Banknote, Wifi,
 } from 'lucide-react';
 
 const STATUS_COLORS: Record<string, string> = {
@@ -35,6 +36,9 @@ export default function AdminBookingDetailPage() {
   const [actionLoading, setActionLoading] = useState('');
   const [showCancelModal, setShowCancelModal] = useState(false);
   const [cancelReason, setCancelReason] = useState('');
+  const [showCollectModal, setShowCollectModal] = useState(false);
+  const [collectMethod, setCollectMethod] = useState<'cash' | 'card' | 'upi'>('cash');
+  const [collectRef, setCollectRef] = useState('');
   const [editNotes, setEditNotes] = useState(false);
   const [notes, setNotes] = useState('');
 
@@ -91,6 +95,33 @@ export default function AdminBookingDetailPage() {
   const handleNoShow = () =>
     doAction('no-show', () => markNoShow(supabase as any, id));
 
+  const handleCollectPayment = async () => {
+    setActionLoading('collect');
+    try {
+      const res = await fetch('/api/payments/pay-at-hotel', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          bookingId: id,
+          method: collectMethod,
+          transactionRef: collectRef || undefined,
+          notes: `Collected at reception via ${collectMethod}`,
+        }),
+      });
+      const data = await res.json();
+      if (!res.ok) { toast.error(data.error ?? 'Payment failed'); }
+      else {
+        toast.success(`Payment of ${formatINR(data.amount)} collected successfully!`);
+        setShowCollectModal(false);
+        setCollectRef('');
+        load();
+      }
+    } catch {
+      toast.error('Failed to record payment');
+    }
+    setActionLoading('');
+  };
+
   const handleSaveNotes = async () => {
     const db = supabase as any;
     await db.from('bookings').update({ internal_notes: notes }).eq('id', id);
@@ -124,11 +155,18 @@ export default function AdminBookingDetailPage() {
   const sc = STATUS_COLORS[booking.status] ?? 'bg-gray-100 text-gray-600 border-gray-300';
 
   const canConfirm    = booking.status === 'pending';
+  // Payment detection
+  const isOnlinePayment   = ['online', 'upi', 'card', 'bank_transfer'].includes(booking.payment_method ?? '');
+  const isPayAtHotel      = ['pay_at_hotel', 'cash'].includes(booking.payment_method ?? '') || !booking.payment_method;
+  const isPaid            = booking.payment_status === 'paid';
+  const needsPayment      = isPayAtHotel && !isPaid;
   // No-show: booking was supposed to check-in in the past but still pending/confirmed
   const todayISO      = (() => { const d = new Date(); return `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}-${String(d.getDate()).padStart(2,'0')}`; })();
   const canMarkNoShow = ['pending', 'confirmed'].includes(booking.status) && booking.check_in < todayISO;
-  // Only show Check In if NOT a no-show candidate (check-in date is today or future)
-  const canCheckIn    = booking.status === 'confirmed' && !canMarkNoShow;
+  // Collect payment: only for pay-at-hotel, confirmed, unpaid, non-noshow
+  const canCollectPayment = booking.status === 'confirmed' && needsPayment && !canMarkNoShow;
+  // Check-in: only if payment done (or online) and not a no-show candidate
+  const canCheckIn    = booking.status === 'confirmed' && !canMarkNoShow && (isOnlinePayment || isPaid);
   const canCheckOut   = booking.status === 'checked_in';
   const canCancel     = ['pending', 'confirmed'].includes(booking.status) && !canMarkNoShow;
 
@@ -157,10 +195,33 @@ export default function AdminBookingDetailPage() {
             <CheckCircle size={15} /> {actionLoading === 'confirm' ? 'Confirming…' : 'Confirm Booking'}
           </button>
         )}
+        {/* Payment badge for online bookings */}
+        {isOnlinePayment && isPaid && (
+          <span className="flex items-center gap-1.5 px-3 py-2 bg-green-50 text-green-700 border border-green-200 text-sm font-semibold rounded-lg">
+            <Wifi size={14} /> Paid Online
+          </span>
+        )}
+        {/* Collect Payment button for pay-at-hotel */}
+        {canCollectPayment && (
+          <button
+            onClick={() => setShowCollectModal(true)}
+            disabled={actionLoading === 'collect'}
+            className="flex items-center gap-2 px-4 py-2 bg-amber-500 text-white text-sm font-semibold rounded-lg hover:bg-amber-600 disabled:opacity-60"
+          >
+            <Banknote size={15} />
+            {actionLoading === 'collect' ? 'Recording…' : 'Collect Payment'}
+          </button>
+        )}
         {canCheckIn && (
           <button onClick={handleCheckIn} disabled={actionLoading === 'check-in'} className="flex items-center gap-2 px-4 py-2 bg-green-600 text-white text-sm font-semibold rounded-lg hover:bg-green-700 disabled:opacity-60">
             <LogIn size={15} /> {actionLoading === 'check-in' ? 'Checking In…' : 'Check In Guest'}
           </button>
+        )}
+        {/* Pay-at-hotel pending payment — blocked check-in hint */}
+        {booking.status === 'confirmed' && needsPayment && !canMarkNoShow && (
+          <p className="text-xs text-amber-600 font-medium flex items-center gap-1">
+            <Banknote size={12} /> Collect payment first to enable check-in
+          </p>
         )}
         {canCheckOut && (
           <button onClick={handleCheckOut} disabled={actionLoading === 'check-out'} className="flex items-center gap-2 px-4 py-2 bg-orange-500 text-white text-sm font-semibold rounded-lg hover:bg-orange-600 disabled:opacity-60">
@@ -241,8 +302,30 @@ export default function AdminBookingDetailPage() {
             <div className="flex justify-between font-bold border-t border-outline-variant pt-2 mt-1">
               <span>Total</span><span className="text-primary">{formatINR(Number(booking.total_amount))}</span>
             </div>
-            <div className="flex justify-between text-xs"><span className="text-on-surface-variant">Payment Status</span><span className="capitalize font-medium">{booking.payment_status}</span></div>
-            <div className="flex justify-between text-xs"><span className="text-on-surface-variant">Balance Due</span><span>{formatINR(Number(booking.balance_amount))}</span></div>
+            {/* Payment Method */}
+            <div className="flex justify-between items-center text-xs mt-1">
+              <span className="text-on-surface-variant">Payment Method</span>
+              {isOnlinePayment ? (
+                <span className="flex items-center gap-1 bg-blue-50 text-blue-700 px-2 py-0.5 rounded-full font-medium">
+                  <Wifi size={10} /> Online
+                </span>
+              ) : (
+                <span className="flex items-center gap-1 bg-amber-50 text-amber-700 px-2 py-0.5 rounded-full font-medium">
+                  <Banknote size={10} /> Pay at Hotel
+                </span>
+              )}
+            </div>
+            <div className="flex justify-between items-center text-xs">
+              <span className="text-on-surface-variant">Payment Status</span>
+              <span className={`capitalize font-semibold px-2 py-0.5 rounded-full text-[10px] ${
+                isPaid ? 'bg-green-50 text-green-700' : 'bg-yellow-50 text-yellow-700'
+              }`}>{booking.payment_status ?? 'pending'}</span>
+            </div>
+            {Number(booking.balance_amount) > 0 && (
+              <div className="flex justify-between text-xs font-semibold text-red-600">
+                <span>Balance Due</span><span>{formatINR(Number(booking.balance_amount))}</span>
+              </div>
+            )}
           </div>
         </div>
       </div>
@@ -283,6 +366,56 @@ export default function AdminBookingDetailPage() {
             <div className="flex gap-3">
               <button onClick={handleCancel} className="flex-1 py-2.5 bg-red-500 text-white font-semibold rounded-lg text-sm">Confirm Cancel</button>
               <button onClick={() => setShowCancelModal(false)} className="flex-1 py-2.5 border border-outline-variant rounded-lg text-sm">Keep</button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Collect Payment Modal */}
+      {showCollectModal && (
+        <div className="fixed inset-0 bg-black/50 z-50 flex items-center justify-center p-4">
+          <div className="bg-white rounded-xl p-6 w-full max-w-md shadow-xl">
+            <h3 className="font-heading font-semibold text-lg text-on-surface mb-1">Collect Payment</h3>
+            <p className="text-sm text-on-surface-variant mb-4">
+              Total to collect: <span className="font-bold text-primary">{formatINR(Number(booking.balance_amount || booking.total_amount))}</span>
+            </p>
+            {/* Payment method selector */}
+            <p className="text-xs font-semibold text-on-surface-variant mb-2">Payment Method</p>
+            <div className="flex gap-2 mb-4">
+              {(['cash', 'card', 'upi'] as const).map(m => (
+                <button
+                  key={m}
+                  onClick={() => setCollectMethod(m)}
+                  className={`flex-1 py-2 rounded-lg text-sm font-semibold border transition-colors capitalize ${
+                    collectMethod === m
+                      ? 'bg-primary text-white border-primary'
+                      : 'border-outline-variant hover:bg-surface'
+                  }`}
+                >
+                  {m === 'cash' ? '💵 Cash' : m === 'card' ? '💳 Card' : '📱 UPI'}
+                </button>
+              ))}
+            </div>
+            {/* Transaction reference (optional) */}
+            <label className="block text-xs font-semibold text-on-surface-variant mb-1">Transaction Ref / Receipt No. (optional)</label>
+            <input
+              type="text"
+              value={collectRef}
+              onChange={e => setCollectRef(e.target.value)}
+              placeholder="e.g. UPI ref, card last 4 digits…"
+              className="w-full px-3 py-2 border border-outline-variant rounded-lg text-sm focus:outline-none focus:border-primary mb-4"
+            />
+            <div className="flex gap-3">
+              <button
+                onClick={handleCollectPayment}
+                disabled={actionLoading === 'collect'}
+                className="flex-1 py-2.5 bg-amber-500 text-white font-semibold rounded-lg text-sm hover:bg-amber-600 disabled:opacity-60"
+              >
+                {actionLoading === 'collect' ? 'Recording…' : `Confirm — ${formatINR(Number(booking.balance_amount || booking.total_amount))}`}
+              </button>
+              <button onClick={() => setShowCollectModal(false)} className="flex-1 py-2.5 border border-outline-variant rounded-lg text-sm">
+                Cancel
+              </button>
             </div>
           </div>
         </div>

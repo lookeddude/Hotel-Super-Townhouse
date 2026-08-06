@@ -123,7 +123,7 @@ const BOOKING_SELECT = `
   id, booking_reference, status, check_in, check_out, nights,
   num_adults, num_children, special_requests, internal_notes,
   arrival_time, subtotal, discount_amount, tax_amount, total_amount,
-  paid_amount, balance_amount, payment_status, source,
+  paid_amount, balance_amount, payment_status, payment_method, source,
   cancelled_at, cancellation_reason, confirmed_at, checked_in_at, checked_out_at,
   created_at, updated_at,
   profiles:guest_id(id, full_name, email, phone, avatar_url),
