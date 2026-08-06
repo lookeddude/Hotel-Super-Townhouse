@@ -153,25 +153,38 @@ export default function AdminBookingDetailPage() {
   const room = br?.rooms;
   const roomType = br?.room_types;
   const sc = STATUS_COLORS[booking.status] ?? 'bg-gray-100 text-gray-600 border-gray-300';
-
   const canConfirm    = booking.status === 'pending';
-  // Payment detection — get method from payments table join
-  const paymentRecords: any[] = Array.isArray(booking.payments) ? booking.payments : (booking.payments ? [booking.payments] : []);
-  const latestPayment = paymentRecords[0];
+
+  // ── Payment detection ─────────────────────────────────────────────────────
+  const paymentRecords: any[] = Array.isArray(booking.payments)
+    ? booking.payments
+    : (booking.payments ? [booking.payments] : []);
+  const latestPayment    = paymentRecords[0];
   const paymentMethodStr = latestPayment?.method ?? '';
-  const isOnlinePayment   = ['online', 'upi', 'card', 'bank_transfer'].includes(paymentMethodStr);
-  const isPaid            = booking.payment_status === 'paid';
-  const isPayAtHotel      = !isOnlinePayment; // if no online payment record, treat as pay-at-hotel
-  const needsPayment      = isPayAtHotel && !isPaid;
-  // No-show: booking was supposed to check-in in the past but still pending/confirmed
-  const todayISO      = (() => { const d = new Date(); return `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}-${String(d.getDate()).padStart(2,'0')}`; })();
-  const canMarkNoShow = ['pending', 'confirmed'].includes(booking.status) && booking.check_in < todayISO;
-  // Collect payment: only for pay-at-hotel, confirmed, unpaid, non-noshow
-  const canCollectPayment = booking.status === 'confirmed' && needsPayment && !canMarkNoShow;
-  // Check-in: only if payment done (or online) and not a no-show candidate
-  const canCheckIn    = booking.status === 'confirmed' && !canMarkNoShow && (isOnlinePayment || isPaid);
-  const canCheckOut   = booking.status === 'checked_in';
-  const canCancel     = ['pending', 'confirmed'].includes(booking.status) && !canMarkNoShow;
+  const isOnlinePayment  = ['online', 'upi', 'card', 'bank_transfer'].includes(paymentMethodStr);
+  const isPaid           = booking.payment_status === 'paid';
+
+  // ── Action conditions ─────────────────────────────────────────────────────
+  const todayISO = (() => {
+    const d = new Date();
+    return `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}-${String(d.getDate()).padStart(2,'0')}`;
+  })();
+
+  // No-show: ONLY for UNPAID past-date bookings (if paid, guest is clearly present)
+  const canMarkNoShow     = ['pending', 'confirmed'].includes(booking.status)
+                            && booking.check_in < todayISO
+                            && !isPaid;
+
+  // Collect payment: confirmed + unpaid (any date, past or future)
+  const canCollectPayment = booking.status === 'confirmed' && !isPaid;
+
+  // Check-in: confirmed + paid (payment proves guest is present, regardless of date)
+  const canCheckIn        = booking.status === 'confirmed' && isPaid;
+
+  const canCheckOut       = booking.status === 'checked_in';
+
+  // Cancel: only for unpaid bookings (paid ones should not be cancelled without refund)
+  const canCancel         = ['pending', 'confirmed'].includes(booking.status) && !isPaid;
 
   return (
     <div className="space-y-5">
@@ -221,7 +234,7 @@ export default function AdminBookingDetailPage() {
           </button>
         )}
         {/* Pay-at-hotel pending payment — blocked check-in hint */}
-        {booking.status === 'confirmed' && needsPayment && !canMarkNoShow && (
+        {booking.status === 'confirmed' && !isPaid && !canMarkNoShow && (
           <p className="text-xs text-amber-600 font-medium flex items-center gap-1">
             <Banknote size={12} /> Collect payment first to enable check-in
           </p>
