@@ -1,7 +1,7 @@
 'use client';
 /**
  * components/invoice/InvoiceView.tsx
- * Full invoice display with print/download support.
+ * Full invoice display — clean single-page print, no admin UI visible.
  */
 import { formatINR, formatDate } from '@/services/pricingService';
 import { Printer, X } from 'lucide-react';
@@ -13,13 +13,20 @@ interface InvoiceViewProps {
 }
 
 export function InvoiceView({ invoice, booking, onClose }: InvoiceViewProps) {
-  const handlePrint = () => window.print();
+  const handlePrint = () => {
+    // Add class so print CSS can hide admin chrome
+    document.body.classList.add('invoice-print-mode');
+    window.print();
+    window.addEventListener('afterprint', () => {
+      document.body.classList.remove('invoice-print-mode');
+    }, { once: true });
+  };
 
   const lineItems: any[] = invoice.line_items ?? [];
 
   return (
     <div className="min-h-screen bg-background">
-      {/* Print controls — hidden when printing */}
+      {/* Toolbar — hidden when printing */}
       <div className="no-print bg-white border-b border-outline-variant px-6 py-3 flex items-center justify-between">
         <div className="flex items-center gap-3">
           {onClose && (
@@ -37,9 +44,10 @@ export function InvoiceView({ invoice, booking, onClose }: InvoiceViewProps) {
         </button>
       </div>
 
-      {/* Invoice */}
+      {/* Invoice body */}
       <div className="max-w-2xl mx-auto py-8 px-6" id="invoice-content">
-        <div className="bg-white rounded-xl border border-outline-variant p-8 print:border-0 print:rounded-none print:shadow-none">
+        <div className="bg-white rounded-xl border border-outline-variant p-8">
+
           {/* Header */}
           <div className="flex justify-between items-start mb-8">
             <div>
@@ -82,7 +90,7 @@ export function InvoiceView({ invoice, booking, onClose }: InvoiceViewProps) {
             </div>
           )}
 
-          {/* Line Items Table */}
+          {/* Line Items */}
           <table className="w-full text-sm mb-6">
             <thead>
               <tr className="border-b border-outline-variant">
@@ -112,7 +120,7 @@ export function InvoiceView({ invoice, booking, onClose }: InvoiceViewProps) {
             )}
             {Number(invoice.cgst_amount) > 0 && (
               <div className="flex justify-between text-on-surface-variant text-xs">
-                <span>CGST ({Number(invoice.cgst_amount) / Number(invoice.subtotal) * 100 > 0 ? (Number(invoice.cgst_amount) / Number(invoice.subtotal) * 100).toFixed(0) : 0}%)</span>
+                <span>CGST ({Number(invoice.subtotal) > 0 ? (Number(invoice.cgst_amount) / Number(invoice.subtotal) * 100).toFixed(0) : 0}%)</span>
                 <span>{formatINR(Number(invoice.cgst_amount))}</span>
               </div>
             )}
@@ -138,10 +146,50 @@ export function InvoiceView({ invoice, booking, onClose }: InvoiceViewProps) {
       </div>
 
       <style>{`
+        /* Remove browser default URL / date / page-number from print header & footer */
+        @page {
+          margin: 10mm 12mm;
+          size: A4 portrait;
+        }
+
         @media print {
+          /* Hide the InvoiceView's own control bar */
           .no-print { display: none !important; }
-          body { background: white; }
-          #invoice-content { padding: 0; margin: 0; }
+
+          /* Hide ALL admin chrome (sidebar, header, breadcrumb, etc.) */
+          body.invoice-print-mode > * { visibility: hidden; }
+          body.invoice-print-mode #invoice-content,
+          body.invoice-print-mode #invoice-content * { visibility: visible; }
+
+          /* Snap invoice to top-left corner of the A4 page */
+          body.invoice-print-mode #invoice-content {
+            position: fixed !important;
+            top: 0 !important;
+            left: 0 !important;
+            width: 100% !important;
+            background: white !important;
+            padding: 0 !important;
+            margin: 0 !important;
+          }
+
+          /* Stretch max-width to full page */
+          body.invoice-print-mode .max-w-2xl {
+            max-width: 100% !important;
+            padding: 0 !important;
+            margin: 0 !important;
+          }
+
+          /* Remove rounded corners and borders for clean print */
+          body.invoice-print-mode .rounded-xl { border-radius: 0 !important; }
+          body.invoice-print-mode .border { border: none !important; }
+
+          /* Prevent page breaks inside invoice */
+          body.invoice-print-mode #invoice-content > div {
+            page-break-inside: avoid;
+            break-inside: avoid;
+          }
+
+          body { background: white !important; }
         }
       `}</style>
     </div>

@@ -160,7 +160,10 @@ export default function AdminBookingDetailPage() {
   const latestPayment    = paymentRecords[0];
   const paymentMethodStr = latestPayment?.method ?? '';
   const isOnlinePayment  = ['online', 'upi', 'card', 'bank_transfer'].includes(paymentMethodStr);
-  const isPaid           = booking.payment_status === 'paid';
+  // isPaid: check BOTH booking.payment_status AND actual payment records
+  // (handles race condition where DB field is stale but payment record already exists)
+  const isPaid = booking.payment_status === 'paid'
+    || paymentRecords.some((p: any) => p.status === 'paid');
 
   // ── Action conditions ─────────────────────────────────────────────────────
   const todayISO = (() => {
@@ -168,23 +171,24 @@ export default function AdminBookingDetailPage() {
     return `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}-${String(d.getDate()).padStart(2,'0')}`;
   })();
 
-  // No-show: ONLY for UNPAID past-date bookings (if paid, guest is clearly present)
+  // No-show: ONLY for UNPAID past-date bookings
   const canMarkNoShow     = ['pending', 'confirmed'].includes(booking.status)
                             && booking.check_in < todayISO
                             && !isPaid;
 
-  // Collect payment: pending or confirmed + unpaid (API auto-confirms pending on payment)
+  // Collect payment: pending or confirmed + unpaid
   const canCollectPayment = ['pending', 'confirmed'].includes(booking.status) && !isPaid;
 
-  // Confirm button: pending + unpaid (alternative to collect payment — just confirms without payment)
+  // Confirm button: pending + unpaid only
   const canConfirm        = booking.status === 'pending' && !isPaid;
 
-  // Check-in: confirmed + paid (payment proves guest is present, regardless of date)
-  const canCheckIn        = booking.status === 'confirmed' && isPaid;
+  // Check-in: (confirmed OR pending) + paid
+  // Include 'pending' because payment collection auto-confirms but load() may be slightly behind
+  const canCheckIn        = ['confirmed', 'pending'].includes(booking.status) && isPaid;
 
   const canCheckOut       = booking.status === 'checked_in';
 
-  // Cancel: only for unpaid bookings
+  // Cancel: only for unpaid, not yet checked-in bookings
   const canCancel         = ['pending', 'confirmed'].includes(booking.status) && !isPaid;
 
   const sc = STATUS_COLORS[booking.status] ?? 'bg-gray-100 text-gray-600 border-gray-300';
